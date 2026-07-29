@@ -56,6 +56,13 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// CORS: orígenes permitidos para el front (config "Cors:AllowedOrigins", separados
+// por coma). Por defecto, el dev server de Vite en local.
+var corsOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:5173,http://localhost:4173")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+    p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod()));
+
 // Autorización por permiso: [HasPermission("...")] → política dinámica "perm:...".
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -89,6 +96,7 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
