@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "postgres-readonly": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "${DATABASE_URL_RO}"],
+      "comment": "Usar un ROL DE BD DE SOLO LECTURA. DATABASE_URL_RO como variable de entorno, nunca en git. Servidor de referencia deprecado: evaluar Postgres MCP Pro (crystaldba) u otro activo."
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" },
+      "comment": "Token de alcance mínimo, solo los repos del proyecto."
+    }
+  }
+}

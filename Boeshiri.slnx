@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Boeshiri.Api/Boeshiri.Api.csproj" />
+  <Project Path="Boeshiri.Application/Boeshiri.Application.csproj" />
+  <Project Path="Boeshiri.Domain/Boeshiri.Domain.csproj" />
+  <Project Path="Boeshiri.Infrastructure/Boeshiri.Infrastructure.csproj" />
+  <Project Path="Boeshiri.Tests/Boeshiri.Tests.csproj" />
+</Solution>

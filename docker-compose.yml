@@ -1,0 +1,25 @@
+# PostgreSQL local para desarrollo de Boesh Irí.
+#   docker compose up -d      → levantar
+#   docker compose down       → detener (conserva datos en el volumen)
+#   docker compose down -v    → detener y BORRAR datos
+services:
+  postgres:
+    image: postgres:17
+    container_name: boeshiri-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boeshiri
+      POSTGRES_PASSWORD: boeshiri_dev
+      POSTGRES_DB: boeshiri
+    ports:
+      - "5432:5432"
+    volumes:
+      - boeshiri_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boeshiri -d boeshiri"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  boeshiri_pgdata:
