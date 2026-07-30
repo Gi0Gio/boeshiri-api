@@ -102,4 +102,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Sonda de salud / versión (anónima). Sirve para confirmar qué build está vivo.
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "boeshiri-api" }));
+
 app.Run();
