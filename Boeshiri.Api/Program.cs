@@ -24,6 +24,36 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 builder.Services.AddControllers()
     // Enums en JSON como texto (p. ej. "Aceptar"/"Rechazar", estados...).
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+// Errores de validación (400) en español y legibles, conservando el mapa `errors`.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var campos = string.Join(", ", context.ModelState
+            .Where(e => e.Value?.Errors.Count > 0)
+            .Select(e => e.Key)
+            // Normaliza claves internas del binder ("$", "request.", "$.") a nombres de campo.
+            .Select(k => k.StartsWith("$.", StringComparison.Ordinal) ? k[2..]
+                : k.StartsWith("request.", StringComparison.Ordinal) ? k["request.".Length..]
+                : k)
+            .Where(k => !string.IsNullOrEmpty(k) && k != "$" && k != "request")
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        var problem = new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(context.ModelState)
+        {
+            Status = 400,
+            Title = "Datos inválidos",
+            Detail = string.IsNullOrEmpty(campos)
+                ? "Revisa los datos enviados."
+                : $"Revisa estos campos: {campos}.",
+        };
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(problem)
+        {
+            ContentTypes = { "application/problem+json" },
+        };
+    };
+});
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -67,8 +97,26 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
-// Respuestas de error en formato problem+json.
-builder.Services.AddProblemDetails();
+// Respuestas de error en formato problem+json, con títulos en español por defecto.
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = ctx =>
+    {
+        if (!string.IsNullOrEmpty(ctx.ProblemDetails.Title))
+            return;
+
+        ctx.ProblemDetails.Title = ctx.ProblemDetails.Status switch
+        {
+            400 => "Solicitud inválida.",
+            401 => "Necesitas iniciar sesión.",
+            403 => "No tienes permiso para esta acción.",
+            404 => "No se encontró el recurso.",
+            409 => "Conflicto con el estado actual.",
+            >= 500 => "Ocurrió un error en el servidor. Inténtalo de nuevo.",
+            _ => "Ocurrió un error.",
+        };
+    };
+});
 builder.Services.AddExceptionHandler<AppExceptionHandler>();
 
 var app = builder.Build();

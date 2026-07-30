@@ -17,6 +17,9 @@ public interface IMarketplaceService
 
     Task<IReadOnlyList<ProductSummaryDto>> ListMineAsync(Guid userId, CancellationToken ct = default);
 
+    /// <summary>Todos los productos vivos (cualquier vendedor) para moderación (RF-MKT-07/08).</summary>
+    Task<IReadOnlyList<ProductSummaryDto>> ListForModerationAsync(CancellationToken ct = default);
+
     /// <summary>Publica un producto. Requiere estar dado de alta (RF-MKT-03/04).</summary>
     Task<Guid> CreateAsync(Guid userId, CreateProductRequest request, CancellationToken ct = default);
 

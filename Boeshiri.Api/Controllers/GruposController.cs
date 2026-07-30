@@ -22,6 +22,28 @@ public class GruposController(IGroupService groups) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<CommissionDto>>> Commissions(CancellationToken ct)
         => Ok(await groups.ListCommissionsAsync(ct));
 
+    /// <summary>Detalle de una comisión: integrantes y equipos (RF-GRP-02).</summary>
+    [HttpGet("comisiones/{id:guid}")]
+    public async Task<ActionResult<CommissionDetailDto>> CommissionDetail(Guid id, CancellationToken ct)
+        => Ok(await groups.GetCommissionDetailAsync(id, ct));
+
+    /// <summary>Crea una comisión (RF-GRP-01). Requiere gestión global.</summary>
+    [HasPermission("comisiones.ver_todas")]
+    [HttpPost("comisiones")]
+    public async Task<ActionResult> CreateCommission(CreateCommissionRequest request, CancellationToken ct)
+    {
+        var id = await groups.CreateCommissionAsync(request, User.GetUserId(), CanManageGlobally, ct);
+        return Created($"/grupos/comisiones/{id}", new { id });
+    }
+
+    /// <summary>Designa al coordinador de una comisión (RF-GRP-03).</summary>
+    [HttpPost("comisiones/{id:guid}/coordinador")]
+    public async Task<IActionResult> AssignCoordinator(Guid id, AssignCoordinatorRequest request, CancellationToken ct)
+    {
+        await groups.AssignCoordinatorAsync(id, request.UserId, User.GetUserId(), CanManageGlobally, ct);
+        return Ok(new { mensaje = "Coordinador designado." });
+    }
+
     /// <summary>Grupos a los que pertenece el usuario (RF-MEM-09).</summary>
     [HttpGet("mias")]
     public async Task<ActionResult<IReadOnlyList<MyGroupDto>>> Mine(CancellationToken ct)

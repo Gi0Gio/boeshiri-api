@@ -38,6 +38,12 @@ public class PublicacionesController(IPublicationService publications) : Control
     public async Task<ActionResult<IReadOnlyList<PublicationDto>>> Mine(CancellationToken ct)
         => Ok(await publications.ListMineAsync(User.GetUserId(), ct));
 
+    /// <summary>Cola de moderación: todas las publicaciones vivas (RF-ADM-07).</summary>
+    [HasPermission("publicaciones.moderar")]
+    [HttpGet("moderacion")]
+    public async Task<ActionResult<IReadOnlyList<PublicationDto>>> Moderation(CancellationToken ct)
+        => Ok(await publications.ListForModerationAsync(ct));
+
     /// <summary>Crea una publicación (RF-MEM-14). Noticia exige noticias.publicar.</summary>
     [HasPermission("publicaciones.crear")]
     [HttpPost]

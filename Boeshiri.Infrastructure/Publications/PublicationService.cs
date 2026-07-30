@@ -92,6 +92,15 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit) : IPub
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<PublicationDto>> ListForModerationAsync(CancellationToken ct = default)
+    {
+        return await db.Publications
+            .Where(p => p.Status != ContentStatus.Deleted)
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(ToSummary)
+            .ToListAsync(ct);
+    }
+
     public async Task UpdateAsync(Guid id, Guid authorId, UpdatePublicationRequest request, CancellationToken ct = default)
     {
         var p = await db.Publications

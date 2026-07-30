@@ -37,6 +37,18 @@ public class EventosController(IEventService events) : ControllerBase
         return Ok(await events.GetDetailAsync(id, authenticated, ct));
     }
 
+    /// <summary>Listado de gestión: todos los eventos vivos, incl. ocultos (RF-EVT-02).</summary>
+    [HasPermission("eventos.gestionar")]
+    [HttpGet("gestion")]
+    public async Task<ActionResult<IReadOnlyList<EventSummaryDto>>> ListManage([FromQuery] EventWhen cuando = EventWhen.All, CancellationToken ct = default)
+        => Ok(await events.ListManageAsync(cuando, ct));
+
+    /// <summary>Detalle de gestión (aunque esté oculto), para editar.</summary>
+    [HasPermission("eventos.gestionar")]
+    [HttpGet("gestion/{id:guid}")]
+    public async Task<ActionResult<EventDetailDto>> ManageDetail(Guid id, CancellationToken ct)
+        => Ok(await events.GetManageDetailAsync(id, ct));
+
     /// <summary>Crea un evento (RF-EVT-01).</summary>
     [HasPermission("eventos.gestionar")]
     [HttpPost]

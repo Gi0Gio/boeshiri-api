@@ -25,6 +25,7 @@ using Boeshiri.Infrastructure.Notifications;
 using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Profiles;
 using Boeshiri.Infrastructure.Publications;
+using Boeshiri.Infrastructure.Storage;
 using Boeshiri.Infrastructure.Transparency;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +60,15 @@ public static class DependencyInjection
         services.AddOptions<AppOptions>()
             .Bind(config.GetSection(AppOptions.SectionName));
 
+        // ── Almacenamiento de archivos (Cloudflare R2, opcional) ──
+        services.AddOptions<R2Options>()
+            .Bind(config.GetSection(R2Options.SectionName));
+        var r2 = config.GetSection(R2Options.SectionName).Get<R2Options>() ?? new R2Options();
+        if (r2.IsConfigured)
+            services.AddSingleton<IFileStorage, R2FileStorage>();
+        else
+            services.AddSingleton<IFileStorage, DisabledFileStorage>();
+
         // ── Autenticación / correo ───────────────────────────────
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<JwtTokenGenerator>();
@@ -71,6 +81,7 @@ public static class DependencyInjection
 
         // ── Administración ───────────────────────────────────────
         services.AddScoped<IPostulantesService, PostulantesService>();
+        services.AddScoped<IRoleService, RoleService>();
 
         // ── Contenido ────────────────────────────────────────────
         services.AddScoped<IPublicationService, PublicationService>();

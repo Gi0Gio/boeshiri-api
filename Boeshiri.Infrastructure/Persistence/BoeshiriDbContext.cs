@@ -17,6 +17,7 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<SocialTag> SocialTags => Set<SocialTag>();
     public DbSet<SocialLink> SocialLinks => Set<SocialLink>();
+    public DbSet<ProfileSkill> ProfileSkills => Set<ProfileSkill>();
     public DbSet<VerificationToken> VerificationTokens => Set<VerificationToken>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
@@ -53,8 +54,17 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.Property(x => x.Phone).HasMaxLength(32);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Bio).HasMaxLength(2000);
+            e.Property(x => x.Intro).HasMaxLength(4000);
             e.Property(x => x.Discipline).HasMaxLength(120);
             e.Property(x => x.Location).HasMaxLength(160);
+        });
+
+        // ── ProfileSkill ─────────────────────────────────────────
+        b.Entity<ProfileSkill>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(80).IsRequired();
+            e.HasOne(x => x.User).WithMany(u => u.Skills).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── Role ─────────────────────────────────────────────────
@@ -277,6 +287,7 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.Property(x => x.Description).HasMaxLength(4000);
             e.Property(x => x.DeliveryLocation).HasMaxLength(200);
             e.Property(x => x.Price).HasPrecision(10, 2);
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.HasIndex(x => new { x.Status, x.Category });
             e.HasIndex(x => x.SellerId);

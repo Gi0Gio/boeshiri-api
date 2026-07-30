@@ -9,6 +9,12 @@ public interface IEventService
 {
     Task<IReadOnlyList<EventSummaryDto>> ListPublicAsync(EventWhen when, bool includeMembersOnly, CancellationToken ct = default);
 
+    /// <summary>Listado de gestión: todos los eventos vivos (incl. ocultos) para quien administra (RF-EVT-02).</summary>
+    Task<IReadOnlyList<EventSummaryDto>> ListManageAsync(EventWhen when, CancellationToken ct = default);
+
+    /// <summary>Detalle para gestión (sin filtro de estado/visibilidad); para editar aunque esté oculto.</summary>
+    Task<EventDetailDto> GetManageDetailAsync(Guid id, CancellationToken ct = default);
+
     Task<EventDetailDto> GetDetailAsync(Guid id, bool authenticated, CancellationToken ct = default);
 
     Task<Guid> CreateAsync(Guid userId, CreateEventRequest request, CancellationToken ct = default);

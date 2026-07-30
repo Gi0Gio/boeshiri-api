@@ -21,6 +21,9 @@ public interface IPublicationService
     /// <summary>Publicaciones propias del autor (todas menos las eliminadas).</summary>
     Task<IReadOnlyList<PublicationDto>> ListMineAsync(Guid authorId, CancellationToken ct = default);
 
+    /// <summary>Todas las publicaciones vivas (cualquier autor) para moderación (RF-ADM-07).</summary>
+    Task<IReadOnlyList<PublicationDto>> ListForModerationAsync(CancellationToken ct = default);
+
     /// <summary>Edita una publicación propia (actualiza la fecha de edición).</summary>
     Task UpdateAsync(Guid id, Guid authorId, UpdatePublicationRequest request, CancellationToken ct = default);
 

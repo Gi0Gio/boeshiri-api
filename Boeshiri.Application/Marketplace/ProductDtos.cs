@@ -5,6 +5,9 @@ namespace Boeshiri.Application.Marketplace;
 
 public record CreateProductRequest
 {
+    /// <summary>Producto (bien físico) o servicio (tutorías, asesorías…).</summary>
+    public ListingKind Kind { get; init; } = ListingKind.Product;
+
     [Required, MaxLength(160)]
     public required string Name { get; init; }
 
@@ -66,6 +69,7 @@ public record ContactLinkDto(SocialNetworkType Type, string Value);
 
 public record ProductSummaryDto(
     Guid Id,
+    ListingKind Kind,
     string Name,
     string Category,
     decimal Price,
@@ -76,6 +80,7 @@ public record ProductSummaryDto(
 
 public record ProductDetailDto(
     Guid Id,
+    ListingKind Kind,
     string Name,
     string Category,
     decimal Price,

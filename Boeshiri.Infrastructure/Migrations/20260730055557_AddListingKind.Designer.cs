@@ -3,6 +3,7 @@ using System;
 using Boeshiri.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Boeshiri.Infrastructure.Migrations
 {
     [DbContext(typeof(BoeshiriDbContext))]
-    partial class BoeshiriDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730055557_AddListingKind")]
+    partial class AddListingKind
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

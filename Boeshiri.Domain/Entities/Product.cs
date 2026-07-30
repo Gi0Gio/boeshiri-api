@@ -13,12 +13,15 @@ public class Product
     public Guid SellerId { get; set; }
     public User Seller { get; set; } = null!;
 
+    /// <summary>Bien físico o servicio (tutorías, asesorías…).</summary>
+    public ListingKind Kind { get; set; } = ListingKind.Product;
+
     public required string Name { get; set; }
     public required string Category { get; set; }
     public decimal Price { get; set; }
     public string? Description { get; set; }
 
-    /// <summary>Ubicación de entrega (RF-MKT-04).</summary>
+    /// <summary>Ubicación de entrega (producto) o modalidad/lugar (servicio) (RF-MKT-04).</summary>
     public string? DeliveryLocation { get; set; }
 
     public ProductStatus Status { get; set; } = ProductStatus.Published;

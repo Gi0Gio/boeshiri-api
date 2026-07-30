@@ -29,6 +29,73 @@ public class GroupService(
             .ToListAsync(ct);
     }
 
+    public async Task<CommissionDetailDto> GetCommissionDetailAsync(Guid commissionId, CancellationToken ct = default)
+    {
+        var commission = await db.Groups
+            .FirstOrDefaultAsync(g => g.Id == commissionId && g.Type == GroupType.Commission, ct)
+            ?? throw AppException.NotFound("La comisión no existe.");
+
+        var members = await db.GroupMemberships
+            .Where(m => m.GroupId == commissionId)
+            .OrderBy(m => m.Role).ThenBy(m => m.User.FullName)
+            .Select(m => new GroupMemberDto(m.UserId, m.User.FullName, m.Role))
+            .ToListAsync(ct);
+
+        var teams = await db.Groups
+            .Where(g => g.ParentCommissionId == commissionId && g.Type == GroupType.Team)
+            .OrderBy(g => g.Name)
+            .Select(g => new TeamDto(
+                g.Id, g.Name,
+                g.Memberships.Where(m => m.Role == GroupRole.Leader).Select(m => m.User.FullName).FirstOrDefault(),
+                g.Memberships.Count))
+            .ToListAsync(ct);
+
+        return new CommissionDetailDto(commission.Id, commission.Name, commission.Permanent, members, teams);
+    }
+
+    public async Task<Guid> CreateCommissionAsync(CreateCommissionRequest request, Guid userId, bool canManageGlobally, CancellationToken ct = default)
+    {
+        if (!canManageGlobally)
+            throw AppException.Forbidden("Solo la Junta puede crear comisiones.");
+
+        var name = request.Name.Trim();
+        if (await db.Groups.AnyAsync(g => g.Type == GroupType.Commission && g.Name.ToLower() == name.ToLower(), ct))
+            throw AppException.Conflict("Ya existe una comisión con ese nombre.");
+
+        var commission = new Group { Name = name, Type = GroupType.Commission, Permanent = request.Permanent };
+        if (request.CoordinatorUserId is Guid coord)
+            commission.Memberships.Add(new GroupMembership { UserId = coord, Role = GroupRole.Coordinator });
+
+        db.Groups.Add(commission);
+        audit.Log(userId, "comision.creada", "Group", commission.Id.ToString(), name);
+        await db.SaveChangesAsync(ct);
+        return commission.Id;
+    }
+
+    public async Task AssignCoordinatorAsync(Guid commissionId, Guid coordinatorUserId, Guid userId, bool canManageGlobally, CancellationToken ct = default)
+    {
+        var isCommission = await db.Groups.AnyAsync(g => g.Id == commissionId && g.Type == GroupType.Commission, ct);
+        if (!isCommission)
+            throw AppException.NotFound("La comisión no existe.");
+
+        await EnsureCanManageAsync(commissionId, userId, canManageGlobally, ct);
+
+        var memberships = await db.GroupMemberships.Where(m => m.GroupId == commissionId).ToListAsync(ct);
+
+        // Degradar coordinador(es) actual(es).
+        foreach (var m in memberships.Where(m => m.Role == GroupRole.Coordinator))
+            m.Role = GroupRole.Member;
+
+        var target = memberships.FirstOrDefault(m => m.UserId == coordinatorUserId);
+        if (target is null)
+            db.GroupMemberships.Add(new GroupMembership { GroupId = commissionId, UserId = coordinatorUserId, Role = GroupRole.Coordinator });
+        else
+            target.Role = GroupRole.Coordinator;
+
+        audit.Log(userId, "comision.coordinador_asignado", "Group", commissionId.ToString(), coordinatorUserId.ToString());
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<IReadOnlyList<MyGroupDto>> ListMyGroupsAsync(Guid userId, CancellationToken ct = default)
     {
         return await db.GroupMemberships

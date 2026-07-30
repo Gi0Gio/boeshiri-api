@@ -9,6 +9,17 @@ public record ProfilePrivacyDto(bool ShowPhone, bool ShowEmail, bool ShowWhatsap
 
 public record SocialLinkDto(SocialNetworkType Type, string Value, bool Visible);
 
+public record SkillDto(string Name, int Level);
+
+public record SkillInput
+{
+    [Required, MaxLength(80)]
+    public required string Name { get; init; }
+
+    [Range(1, 8)]
+    public int Level { get; init; } = 1;
+}
+
 /// <summary>Perfil propio (vista completa, sin filtrar por privacidad).</summary>
 public record MyProfileDto(
     Guid Id,
@@ -16,12 +27,15 @@ public record MyProfileDto(
     string Email,
     string? Phone,
     string? Bio,
+    string? Intro,
     string? PhotoUrl,
     string? Discipline,
     string? Location,
     ProfilePrivacyDto Privacy,
     IReadOnlyList<string> Tags,
-    IReadOnlyList<SocialLinkDto> SocialLinks);
+    IReadOnlyList<SkillDto> Skills,
+    IReadOnlyList<SocialLinkDto> SocialLinks,
+    bool MarketplaceActive);
 
 public record UpdateProfileRequest
 {
@@ -31,14 +45,24 @@ public record UpdateProfileRequest
     [MaxLength(2000)]
     public string? Bio { get; init; }
 
+    [MaxLength(4000)]
+    public string? Intro { get; init; }
+
     [MaxLength(120)]
     public string? Discipline { get; init; }
+
+    /// <summary>Ubicación opcional; se muestra como pill si el miembro la rellena (RF-MEM-02).</summary>
+    [MaxLength(120)]
+    public string? Location { get; init; }
 
     [MaxLength(500)]
     public string? PhotoUrl { get; init; }
 
     /// <summary>Etiquetas sociales cosméticas (RF-MEM-01/RF-RBAC-05).</summary>
     public List<string>? Tags { get; init; }
+
+    /// <summary>Habilidades con nivel (1–8) para el portafolio.</summary>
+    public List<SkillInput>? Skills { get; init; }
 }
 
 public record UpdatePrivacyRequest
@@ -79,10 +103,13 @@ public record PublicProfileDto(
     Guid Id,
     string FullName,
     string? Bio,
+    string? Intro,
     string? PhotoUrl,
     string? Discipline,
     string? Location,
+    IReadOnlyList<string> Roles,
     IReadOnlyList<string> Tags,
+    IReadOnlyList<SkillDto> Skills,
     string? Phone,
     string? Email,
     IReadOnlyList<PublicSocialLinkDto> SocialLinks,

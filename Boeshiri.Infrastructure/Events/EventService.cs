@@ -33,6 +33,21 @@ public class EventService(
         return await query.Select(ToSummary).ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<EventSummaryDto>> ListManageAsync(EventWhen when, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var query = db.Events.Where(e => e.Status != ContentStatus.Deleted);
+
+        query = when switch
+        {
+            EventWhen.Upcoming => query.Where(e => e.Date >= now).OrderBy(e => e.Date),
+            EventWhen.Past => query.Where(e => e.Date < now).OrderByDescending(e => e.Date),
+            _ => query.OrderByDescending(e => e.Date)
+        };
+
+        return await query.Select(ToSummary).ToListAsync(ct);
+    }
+
     public async Task<EventDetailDto> GetDetailAsync(Guid id, bool authenticated, CancellationToken ct = default)
     {
         var e = await db.Events.Include(x => x.Images).FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -43,6 +58,19 @@ public class EventService(
         if (e.Visibility == Visibility.Members && !authenticated)
             throw AppException.Unauthorized("Este evento es exclusivo para miembros. Inicia sesión para verlo.");
 
+        return await ToDetailAsync(e, ct);
+    }
+
+    public async Task<EventDetailDto> GetManageDetailAsync(Guid id, CancellationToken ct = default)
+    {
+        var e = await db.Events.Include(x => x.Images).FirstOrDefaultAsync(x => x.Id == id && x.Status != ContentStatus.Deleted, ct)
+            ?? throw AppException.NotFound("El evento no está disponible.");
+
+        return await ToDetailAsync(e, ct);
+    }
+
+    private async Task<EventDetailDto> ToDetailAsync(Event e, CancellationToken ct)
+    {
         var responsibleName = e.ResponsibleId is null
             ? null
             : await db.Users.Where(u => u.Id == e.ResponsibleId).Select(u => u.FullName).FirstOrDefaultAsync(ct);

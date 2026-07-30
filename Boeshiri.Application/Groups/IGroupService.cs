@@ -9,6 +9,15 @@ public interface IGroupService
 {
     Task<IReadOnlyList<CommissionDto>> ListCommissionsAsync(CancellationToken ct = default);
 
+    /// <summary>Detalle de una comisión: integrantes y equipos (RF-GRP-02).</summary>
+    Task<CommissionDetailDto> GetCommissionDetailAsync(Guid commissionId, CancellationToken ct = default);
+
+    /// <summary>Crea una comisión. Requiere gestión global (comisiones.ver_todas).</summary>
+    Task<Guid> CreateCommissionAsync(CreateCommissionRequest request, Guid userId, bool canManageGlobally, CancellationToken ct = default);
+
+    /// <summary>Designa al coordinador de una comisión (RF-GRP-03). Debe ser integrante.</summary>
+    Task AssignCoordinatorAsync(Guid commissionId, Guid coordinatorUserId, Guid userId, bool canManageGlobally, CancellationToken ct = default);
+
     /// <summary>Grupos a los que pertenece el usuario, con su rol (RF-MEM-09).</summary>
     Task<IReadOnlyList<MyGroupDto>> ListMyGroupsAsync(Guid userId, CancellationToken ct = default);
 

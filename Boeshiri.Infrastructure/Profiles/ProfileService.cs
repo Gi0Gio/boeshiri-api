@@ -16,14 +16,17 @@ public class ProfileService(BoeshiriDbContext db) : IProfileService
         var user = await db.Users
             .Include(u => u.Tags)
             .Include(u => u.SocialLinks)
+            .Include(u => u.Skills)
             .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw AppException.Unauthorized("Usuario no encontrado.");
 
         return new MyProfileDto(
-            user.Id, user.FullName, user.Email, user.Phone, user.Bio, user.PhotoUrl, user.Discipline, user.Location,
+            user.Id, user.FullName, user.Email, user.Phone, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Location,
             new ProfilePrivacyDto(user.ShowPhone, user.ShowEmail, user.ShowWhatsapp, user.ShowCommittees, user.ShowHistory),
             user.Tags.Select(t => t.Name).ToList(),
-            user.SocialLinks.Select(l => new SocialLinkDto(l.Type, l.Value, l.Visible)).ToList());
+            user.Skills.OrderBy(s => s.Order).Select(s => new SkillDto(s.Name, s.Level)).ToList(),
+            user.SocialLinks.Select(l => new SocialLinkDto(l.Type, l.Value, l.Visible)).ToList(),
+            user.MarketplaceActive);
     }
 
     public async Task UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken ct = default)
@@ -33,12 +36,25 @@ public class ProfileService(BoeshiriDbContext db) : IProfileService
 
         user.FullName = request.FullName.Trim();
         user.Bio = request.Bio;
+        user.Intro = request.Intro;
         user.Discipline = request.Discipline;
+        user.Location = request.Location;
         user.PhotoUrl = request.PhotoUrl;
 
         user.Tags.Clear();
         foreach (var name in NormalizeTags(request.Tags))
             user.Tags.Add(await GetOrCreateTagAsync(name, ct));
+
+        // Reemplazar habilidades (sobre el DbSet para evitar conflictos de navegación).
+        var existingSkills = await db.ProfileSkills.Where(s => s.UserId == userId).ToListAsync(ct);
+        db.ProfileSkills.RemoveRange(existingSkills);
+        var order = 0;
+        foreach (var sk in request.Skills ?? [])
+        {
+            var name = sk.Name.Trim();
+            if (name.Length == 0) continue;
+            db.ProfileSkills.Add(new ProfileSkill { UserId = userId, Name = name, Level = Math.Clamp(sk.Level, 1, 8), Order = order++ });
+        }
 
         await db.SaveChangesAsync(ct);
     }
@@ -90,6 +106,8 @@ public class ProfileService(BoeshiriDbContext db) : IProfileService
         var user = await db.Users
             .Include(u => u.Tags)
             .Include(u => u.SocialLinks)
+            .Include(u => u.Skills)
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .FirstOrDefaultAsync(u => u.Id == userId, ct);
 
         // Solo los miembros activos tienen perfil público (RF-PUB-09).
@@ -126,8 +144,10 @@ public class ProfileService(BoeshiriDbContext db) : IProfileService
             .ToListAsync(ct);
 
         return new PublicProfileDto(
-            user.Id, user.FullName, user.Bio, user.PhotoUrl, user.Discipline, user.Location,
+            user.Id, user.FullName, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Location,
+            user.UserRoles.Select(ur => ur.Role.Name).ToList(),
             user.Tags.Select(t => t.Name).ToList(),
+            user.Skills.OrderBy(s => s.Order).Select(s => new SkillDto(s.Name, s.Level)).ToList(),
             user.ShowPhone ? user.Phone : null,
             user.ShowEmail ? user.Email : null,
             socialLinks, commissions, history, gallery);

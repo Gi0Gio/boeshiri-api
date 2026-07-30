@@ -30,6 +30,9 @@ public class User
 
     // ── Perfil (RF-MEM-01/02) ────────────────────────────────────
     public string? Bio { get; set; }
+
+    /// <summary>Introducción larga del portafolio (sección "Introducción").</summary>
+    public string? Intro { get; set; }
     public string? PhotoUrl { get; set; }
     public string? Location { get; set; }
     public string? Discipline { get; set; }
@@ -48,6 +51,7 @@ public class User
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<SocialLink> SocialLinks { get; set; } = new List<SocialLink>();
     public ICollection<SocialTag> Tags { get; set; } = new List<SocialTag>();
+    public ICollection<ProfileSkill> Skills { get; set; } = new List<ProfileSkill>();
 
     /// <summary>
     /// Permisos efectivos = unión de los permisos de todos sus roles (RF-RBAC-02).

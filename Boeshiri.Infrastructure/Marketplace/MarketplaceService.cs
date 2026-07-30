@@ -54,7 +54,7 @@ public class MarketplaceService(
             throw AppException.NotFound("El producto no está disponible.");
 
         return new ProductDetailDto(
-            p.Id, p.Name, p.Category, p.Price, p.Description, p.DeliveryLocation, p.Status,
+            p.Id, p.Kind, p.Name, p.Category, p.Price, p.Description, p.DeliveryLocation, p.Status,
             p.SellerId, p.Seller.FullName, Contact(p.Seller),
             p.Images.OrderBy(i => i.Order).Select(i => i.Url).ToList());
     }
@@ -63,6 +63,15 @@ public class MarketplaceService(
     {
         return await db.Products
             .Where(p => p.SellerId == userId && p.Status != ProductStatus.Deleted)
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(ToSummary)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<ProductSummaryDto>> ListForModerationAsync(CancellationToken ct = default)
+    {
+        return await db.Products
+            .Where(p => p.Status != ProductStatus.Deleted)
             .OrderByDescending(p => p.CreatedAt)
             .Select(ToSummary)
             .ToListAsync(ct);
@@ -80,6 +89,7 @@ public class MarketplaceService(
         var product = new Product
         {
             SellerId = userId,
+            Kind = request.Kind,
             Name = request.Name.Trim(),
             Category = request.Category.Trim(),
             Price = request.Price,
@@ -164,6 +174,6 @@ public class MarketplaceService(
             .ToList());
 
     private static readonly Expression<Func<Product, ProductSummaryDto>> ToSummary = p => new ProductSummaryDto(
-        p.Id, p.Name, p.Category, p.Price, p.SellerId, p.Seller.FullName, p.Status,
+        p.Id, p.Kind, p.Name, p.Category, p.Price, p.SellerId, p.Seller.FullName, p.Status,
         p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault());
 }

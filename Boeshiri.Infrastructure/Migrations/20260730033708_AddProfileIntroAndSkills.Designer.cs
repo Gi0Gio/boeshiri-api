@@ -3,6 +3,7 @@ using System;
 using Boeshiri.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Boeshiri.Infrastructure.Migrations
 {
     [DbContext(typeof(BoeshiriDbContext))]
-    partial class BoeshiriDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730033708_AddProfileIntroAndSkills")]
+    partial class AddProfileIntroAndSkills
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -634,12 +637,6 @@ namespace Boeshiri.Infrastructure.Migrations
                     b.Property<DateTime?>("EditedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("edited_at");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("kind");
 
                     b.Property<string>("Name")
                         .IsRequired()

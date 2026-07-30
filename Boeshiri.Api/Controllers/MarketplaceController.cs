@@ -25,6 +25,12 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
     public async Task<ActionResult<IReadOnlyList<ProductSummaryDto>>> Mine(CancellationToken ct)
         => Ok(await marketplace.ListMineAsync(User.GetUserId(), ct));
 
+    /// <summary>Cola de moderación: todos los productos vivos (RF-MKT-07/08).</summary>
+    [HasPermission("productos.moderar")]
+    [HttpGet("moderacion")]
+    public async Task<ActionResult<IReadOnlyList<ProductSummaryDto>>> Moderation(CancellationToken ct)
+        => Ok(await marketplace.ListForModerationAsync(ct));
+
     /// <summary>Detalle con los datos de contacto del vendedor (RF-MKT-02).</summary>
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
