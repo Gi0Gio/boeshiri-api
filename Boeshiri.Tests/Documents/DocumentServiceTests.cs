@@ -14,7 +14,9 @@ public class DocumentServiceTests : IDisposable
 {
     private readonly TestDb _db = new();
 
-    private DocumentService NewService(BoeshiriDbContext ctx) => new(ctx, new AuditLogger(ctx));
+    private readonly FakeFileStorage _storage = new();
+
+    private DocumentService NewService(BoeshiriDbContext ctx) => new(ctx, new AuditLogger(ctx), _storage);
 
     private static CreateDocumentRequest Req(
         DocumentLibrary library = DocumentLibrary.Community,
@@ -176,6 +178,21 @@ public class DocumentServiceTests : IDisposable
         ctx.Users.Add(u);
         await ctx.SaveChangesAsync();
         return u.Id;
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AlsoRemovesFileFromStorage()
+    {
+        var autor = await AddUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(autor, Req(), canUploadCommunity: true, canManageAdmin: true);
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).DeleteAsync(id, autor, canManageAdmin: true);
+
+        // Sin esto el objeto quedaría en el bucket sin que ninguna fila lo referencie.
+        Assert.Single(_storage.Deleted);
     }
 
     public void Dispose() => _db.Dispose();

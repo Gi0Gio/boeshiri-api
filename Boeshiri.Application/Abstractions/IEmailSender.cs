@@ -6,5 +6,9 @@ namespace Boeshiri.Application.Abstractions;
 /// </summary>
 public interface IEmailSender
 {
-    Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default);
+    /// <param name="textBody">
+    /// Alternativa en texto plano. Opcional, pero conviene enviarla: los filtros
+    /// antispam penalizan los correos solo-HTML y algunos clientes no renderizan HTML.
+    /// </param>
+    Task SendAsync(string to, string subject, string htmlBody, string? textBody = null, CancellationToken ct = default);
 }

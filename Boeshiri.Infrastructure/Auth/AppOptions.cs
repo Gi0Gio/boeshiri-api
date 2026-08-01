@@ -5,6 +5,10 @@ public class AppOptions
 {
     public const string SectionName = "App";
 
-    /// <summary>Base pública para construir enlaces (p. ej. el de verificación).</summary>
-    public string PublicBaseUrl { get; set; } = "http://localhost:8080";
+    /// <summary>
+    /// URL base del FRONTEND (no de la API). Los enlaces de los correos apuntan aquí
+    /// para que el usuario aterrice en una página de la marca y no en el JSON del
+    /// endpoint. En producción debe ser el dominio del sitio, p. ej. https://boeshiri.org
+    /// </summary>
+    public string PublicBaseUrl { get; set; } = "http://localhost:5173";
 }

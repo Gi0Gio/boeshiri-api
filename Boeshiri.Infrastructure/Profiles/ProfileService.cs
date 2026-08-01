@@ -1,3 +1,4 @@
+using Boeshiri.Application.Abstractions;
 using System.Net.Mail;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Profiles;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Boeshiri.Infrastructure.Profiles;
 
 /// <summary>Perfil del miembro y perfiles públicos de la Comunidad (RF-MEM-01..08, RF-PUB-09).</summary>
-public class ProfileService(BoeshiriDbContext db) : IProfileService
+public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfileService
 {
     public async Task<MyProfileDto> GetMyProfileAsync(Guid userId, CancellationToken ct = default)
     {
@@ -39,6 +40,11 @@ public class ProfileService(BoeshiriDbContext db) : IProfileService
         user.Intro = request.Intro;
         user.Discipline = request.Discipline;
         user.Location = request.Location;
+
+        // Al cambiar de foto hay que soltar la anterior del bucket: si no, cada
+        // cambio de avatar deja un objeto que nadie volverá a referenciar y que
+        // sigue ocupando (y contando para el límite gratuito de 10 GB).
+        var fotoAnterior = user.PhotoUrl;
         user.PhotoUrl = request.PhotoUrl;
 
         user.Tags.Clear();
@@ -57,6 +63,11 @@ public class ProfileService(BoeshiriDbContext db) : IProfileService
         }
 
         await db.SaveChangesAsync(ct);
+
+        // Después de guardar: si el borrado remoto falla, el perfil ya quedó correcto
+        // y solo sobra un objeto en el bucket. Al revés perderíamos la foto nueva.
+        if (!string.IsNullOrWhiteSpace(fotoAnterior) && fotoAnterior != user.PhotoUrl)
+            await storage.DeleteAsync(fotoAnterior, ct);
     }
 
     public async Task UpdatePrivacyAsync(Guid userId, UpdatePrivacyRequest request, CancellationToken ct = default)

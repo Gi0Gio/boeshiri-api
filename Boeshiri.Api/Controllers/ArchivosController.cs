@@ -12,9 +12,11 @@ namespace Boeshiri.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("archivos")]
-public class ArchivosController(IFileStorage storage) : ControllerBase
+public class ArchivosController(IFileStorage storage, IUploadProcessor processor) : ControllerBase
 {
-    private const long MaxBytes = 20 * 1024 * 1024; // 20 MB
+    // Tope de transporte: corta la petición antes de leerla entera. Los límites
+    // reales por tipo (5 MB imagen, 10 MB PDF) los aplica el IUploadProcessor.
+    private const long MaxBytes = 10 * 1024 * 1024;
 
     /// <summary>Sube un archivo y devuelve su URL pública.</summary>
     [HttpPost]
@@ -24,11 +26,13 @@ public class ArchivosController(IFileStorage storage) : ControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(new { detail = "No se recibió ningún archivo." });
 
-        if (file.Length > MaxBytes)
-            return BadRequest(new { detail = "El archivo supera el límite de 20 MB." });
-
         await using var stream = file.OpenReadStream();
-        var url = await storage.UploadAsync(stream, file.FileName, file.ContentType, folder ?? "misc", ct);
+
+        // Se valida y normaliza ANTES de tocar el bucket: lo que no cumple la política
+        // no llega a ocupar espacio. El Content-Type del cliente se ignora a propósito.
+        using var listo = await processor.ProcessAsync(stream, file.FileName, folder ?? "misc", ct);
+
+        var url = await storage.UploadAsync(listo.Content, listo.FileName, listo.ContentType, folder ?? "misc", ct);
         return Ok(new { url });
     }
 
