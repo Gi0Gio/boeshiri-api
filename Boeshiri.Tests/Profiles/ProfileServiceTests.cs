@@ -13,7 +13,9 @@ public class ProfileServiceTests : IDisposable
 {
     private readonly TestDb _db = new();
 
-    private ProfileService NewService(BoeshiriDbContext ctx) => new(ctx);
+    private readonly FakeFileStorage _storage = new();
+
+    private ProfileService NewService(BoeshiriDbContext ctx) => new(ctx, _storage);
 
     // ── Edición ──────────────────────────────────────────────────
     [Fact]

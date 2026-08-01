@@ -1,3 +1,4 @@
+using Boeshiri.Application.Abstractions;
 using System.Linq.Expressions;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
@@ -10,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Boeshiri.Infrastructure.Documents;
 
 /// <summary>Biblioteca de documentos (§8) con control de acceso por nivel y biblioteca.</summary>
-public class DocumentService(BoeshiriDbContext db, IAuditLogger audit) : IDocumentService
+public class DocumentService(BoeshiriDbContext db, IAuditLogger audit, IFileStorage storage) : IDocumentService
 {
     public async Task<IReadOnlyList<DocumentDto>> ListAsync(DocumentLibrary? library, string? category, bool canViewAdmin, CancellationToken ct = default)
     {
@@ -82,7 +83,10 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit) : IDocume
 
         EnsureCanManage(doc, userId, canManageAdmin);
 
-        // Sobrescribe: no se conservan versiones anteriores (RF-DOC-01).
+        // Sobrescribe: no se conservan versiones anteriores (RF-DOC-01), así que el
+        // archivo anterior deja de estar referenciado y hay que soltarlo del bucket.
+        var archivoAnterior = doc.FileUrl;
+
         doc.Name = request.Name.Trim();
         doc.Category = request.Category.Trim();
         doc.FileUrl = request.FileUrl;
@@ -92,6 +96,9 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit) : IDocume
         doc.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
+
+        if (!string.IsNullOrWhiteSpace(archivoAnterior) && archivoAnterior != doc.FileUrl)
+            await storage.DeleteAsync(archivoAnterior, ct);
     }
 
     public async Task DeleteAsync(Guid id, Guid userId, bool canManageAdmin, CancellationToken ct = default)
@@ -104,6 +111,11 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit) : IDocume
         db.Documents.Remove(doc);
         audit.Log(userId, "documento.eliminado", "Document", doc.Id.ToString(), doc.Name);
         await db.SaveChangesAsync(ct);
+
+        // Sin esto el archivo quedaba huérfano en el bucket para siempre: la fila
+        // desaparecía de la base y nadie volvía a conocer su URL.
+        if (!string.IsNullOrWhiteSpace(doc.FileUrl))
+            await storage.DeleteAsync(doc.FileUrl, ct);
     }
 
     private static void EnsureCanManage(Document doc, Guid userId, bool canManageAdmin)

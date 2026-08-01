@@ -70,6 +70,10 @@ public static class DependencyInjection
         else
             services.AddSingleton<IFileStorage, DisabledFileStorage>();
 
+        // Valida y normaliza lo que se sube (WebP, límites, lista blanca) antes de
+        // que llegue al bucket. Se registra siempre, aunque R2 esté deshabilitado.
+        services.AddSingleton<IUploadProcessor, UploadProcessor>();
+
         // ── Autenticación / correo ───────────────────────────────
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<JwtTokenGenerator>();
