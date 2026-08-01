@@ -10,9 +10,11 @@ namespace Boeshiri.Infrastructure.Email;
 /// </summary>
 public class LoggingEmailSender(ILogger<LoggingEmailSender> logger) : IEmailSender
 {
-    public Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default)
+    public Task SendAsync(string to, string subject, string htmlBody, string? textBody = null, CancellationToken ct = default)
     {
-        logger.LogInformation("[DEV EMAIL] Para: {To} | Asunto: {Subject}\n{Body}", to, subject, htmlBody);
+        // Se prefiere la versión en texto: en el log es legible y trae el enlace a la
+        // vista, mientras que el HTML maquetado lo entierra entre tablas y estilos.
+        logger.LogInformation("[DEV EMAIL] Para: {To} | Asunto: {Subject}\n{Body}", to, subject, textBody ?? htmlBody);
         return Task.CompletedTask;
     }
 }

@@ -2,6 +2,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Boeshiri.Application.Abstractions;
 using Boeshiri.Application.Common;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Boeshiri.Infrastructure.Storage;
@@ -19,10 +20,12 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
 
     private readonly R2Options _o;
     private readonly AmazonS3Client _client;
+    private readonly ILogger<R2FileStorage> _logger;
 
-    public R2FileStorage(IOptions<R2Options> options)
+    public R2FileStorage(IOptions<R2Options> options, ILogger<R2FileStorage> logger)
     {
         _o = options.Value;
+        _logger = logger;
         var config = new AmazonS3Config
         {
             ServiceURL = $"https://{_o.AccountId}.r2.cloudflarestorage.com",
@@ -57,7 +60,11 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
         }
         catch (AmazonS3Exception ex)
         {
-            throw AppException.BadRequest($"No se pudo subir el archivo: {ex.Message}");
+            // El detalle de R2 (endpoint, bucket, motivo de credenciales) va al log,
+            // nunca al cliente: RF-PUB-20. Y es 502, no 400: la petición era válida,
+            // quien falló fue el almacenamiento.
+            _logger.LogError(ex, "Fallo al subir {Key} a R2 (bucket {Bucket})", key, _o.Bucket);
+            throw AppException.Upstream("No se pudo guardar el archivo. Inténtalo de nuevo en un momento.");
         }
 
         return $"{_o.PublicBaseUrl.TrimEnd('/')}/{key}";

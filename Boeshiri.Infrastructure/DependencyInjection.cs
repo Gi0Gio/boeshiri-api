@@ -31,6 +31,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Resend;
 
 namespace Boeshiri.Infrastructure;
 
@@ -73,7 +74,21 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IEmailSender, LoggingEmailSender>();
+
+        // Correo: Resend si hay API key; si no, el emisor de desarrollo que solo
+        // escribe el mensaje (con su enlace) en el log (ADR-0003).
+        services.AddOptions<ResendOptions>()
+            .Bind(config.GetSection(ResendOptions.SectionName));
+        var resend = config.GetSection(ResendOptions.SectionName).Get<ResendOptions>() ?? new ResendOptions();
+        if (resend.IsConfigured)
+        {
+            services.AddResend(o => o.ApiToken = resend.ApiKey);
+            services.AddScoped<IEmailSender, ResendEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<IEmailSender, LoggingEmailSender>();
+        }
 
         // ── Transversales: notificaciones y auditoría ────────────
         services.AddScoped<INotificationService, NotificationService>();
@@ -82,6 +97,7 @@ public static class DependencyInjection
         // ── Administración ───────────────────────────────────────
         services.AddScoped<IPostulantesService, PostulantesService>();
         services.AddScoped<IRoleService, RoleService>();
+        services.AddScoped<IMemberService, MemberService>();
 
         // ── Contenido ────────────────────────────────────────────
         services.AddScoped<IPublicationService, PublicationService>();

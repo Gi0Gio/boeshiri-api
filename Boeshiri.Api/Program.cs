@@ -129,6 +129,14 @@ using (var scope = app.Services.CreateScope())
     await DatabaseSeeder.SeedAsync(db);
 }
 
+// Deja constancia de qué emisor de correo quedó activo: sin esto, "no llegan los
+// correos" obliga a revisar configuración a ciegas (ADR-0003).
+using (var scope = app.Services.CreateScope())
+{
+    var sender = scope.ServiceProvider.GetRequiredService<Boeshiri.Application.Abstractions.IEmailSender>();
+    app.Logger.LogInformation("Emisor de correo activo: {Sender}", sender.GetType().Name);
+}
+
 // "dotnet run -- --seed-only": migra y siembra, luego termina sin levantar el servidor.
 if (args.Contains("--seed-only"))
     return;

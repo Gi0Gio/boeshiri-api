@@ -26,7 +26,7 @@ public class PostulantesServiceTests : IDisposable
         NullLogger<PostulantesService>.Instance);
 
     [Fact]
-    public async Task ListPendingAsync_ReturnsOnlyVerifiedUndecidedApplicants()
+    public async Task ListPendingAsync_ReturnsUndecidedApplicantsIncludingUnverified()
     {
         await CreateUserAsync("pendiente@ex.com", MemberStatus.Applicant, verified: true);
         await CreateUserAsync("sin-verificar@ex.com", MemberStatus.Applicant, verified: false);
@@ -36,8 +36,26 @@ public class PostulantesServiceTests : IDisposable
         await using var ctx = _db.CreateContext();
         var pending = await NewService(ctx).ListPendingAsync();
 
-        Assert.Single(pending);
+        // Los no verificados se listan (no se pueden decidir, pero deben verse);
+        // los ya decididos y los que no son postulantes quedan fuera.
+        Assert.Equal(2, pending.Count);
+        Assert.Contains(pending, p => p.Email == "sin-verificar@ex.com" && !p.EmailVerified);
+        // Los verificados van primero: son los accionables.
         Assert.Equal("pendiente@ex.com", pending[0].Email);
+        Assert.DoesNotContain(pending, p => p.Email is "activo@ex.com" or "rechazado@ex.com");
+    }
+
+    [Fact]
+    public async Task DecideAsync_UnverifiedApplicant_ThrowsConflict()
+    {
+        await SeedRolesAsync();
+        var id = await CreateUserAsync("sin-verificar@ex.com", MemberStatus.Applicant, verified: false);
+
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(ctx).DecideAsync(id, new DecisionRequest { Decision = DecisionType.Aceptar }, Guid.NewGuid()));
+
+        Assert.Equal(409, ex.StatusCode);
     }
 
     [Fact]

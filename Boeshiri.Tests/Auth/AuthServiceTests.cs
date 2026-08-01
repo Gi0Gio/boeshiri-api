@@ -54,7 +54,16 @@ public class AuthServiceTests : IDisposable
         Assert.False(user.EmailVerified);
         Assert.Single(verify.VerificationTokens);
         Assert.Single(_email.Sent);
-        Assert.Contains("/auth/verificar", _email.Sent[0].Body);
+
+        // El enlace apunta al FRONT (/verificar), no al endpoint de la API: quien lo
+        // abre debe aterrizar en una página de la marca, no en el JSON del endpoint.
+        var token = verify.VerificationTokens.Single().Token;
+        Assert.Contains($"/verificar?token={token}", _email.Sent[0].Body);
+        Assert.DoesNotContain("/auth/verificar", _email.Sent[0].Body);
+
+        // Y viaja también la alternativa en texto plano, con el mismo enlace.
+        Assert.NotNull(_email.Sent[0].Text);
+        Assert.Contains($"/verificar?token={token}", _email.Sent[0].Text!);
     }
 
     [Fact]

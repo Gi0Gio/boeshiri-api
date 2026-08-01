@@ -15,6 +15,12 @@ public class AppException(int statusCode, string message) : Exception(message)
     public static AppException NotFound(string message) => new(StatusCodes.NotFound, message);
     public static AppException Conflict(string message) => new(StatusCodes.Conflict, message);
 
+    /// <summary>
+    /// Falló un servicio del que dependemos (storage, correo…). No es culpa de la
+    /// petición: no debe reportarse como 4xx ni arrastrar el detalle del proveedor.
+    /// </summary>
+    public static AppException Upstream(string message) => new(StatusCodes.BadGateway, message);
+
     private static class StatusCodes
     {
         public const int BadRequest = 400;
@@ -22,5 +28,6 @@ public class AppException(int statusCode, string message) : Exception(message)
         public const int Forbidden = 403;
         public const int NotFound = 404;
         public const int Conflict = 409;
+        public const int BadGateway = 502;
     }
 }

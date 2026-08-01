@@ -25,10 +25,15 @@ public class PostulantesService(
 
     public async Task<IReadOnlyList<PostulanteDto>> ListPendingAsync(CancellationToken ct = default)
     {
+        // Se listan también los que aún no verificaron su correo: decidirlos sigue
+        // bloqueado (RF-PUB-13b), pero ocultarlos dejaba a la Junta sin señal de que
+        // alguien se registró. El flag viaja en el DTO para que la UI lo distinga.
         return await db.Users
-            .Where(u => u.Status == MemberStatus.Applicant && u.EmailVerified && u.RejectedAt == null)
-            .OrderBy(u => u.RegisteredAt)
-            .Select(u => new PostulanteDto(u.Id, u.FullName, u.Email, u.Phone, u.ApplicationReason, u.RegisteredAt))
+            .Where(u => u.Status == MemberStatus.Applicant && u.RejectedAt == null)
+            .OrderByDescending(u => u.EmailVerified)
+            .ThenBy(u => u.RegisteredAt)
+            .Select(u => new PostulanteDto(
+                u.Id, u.FullName, u.Email, u.Phone, u.Discipline, u.ApplicationReason, u.RegisteredAt, u.EmailVerified))
             .ToListAsync(ct);
     }
 

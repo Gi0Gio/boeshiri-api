@@ -4,6 +4,7 @@ using Boeshiri.Application.Auth;
 using Boeshiri.Application.Common;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
+using Boeshiri.Infrastructure.Email;
 using Boeshiri.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,7 @@ public class AuthService(
             PasswordHash = string.Empty,
             FullName = request.FullName.Trim(),
             Phone = request.Phone,
+            Discipline = request.Discipline,
             ApplicationReason = request.ApplicationReason,
             Status = MemberStatus.Applicant,
             EmailVerified = false,
@@ -57,14 +59,30 @@ public class AuthService(
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             Used = false
         });
-        await db.SaveChangesAsync(ct);
 
-        var link = $"{_app.PublicBaseUrl}/auth/verificar?token={token}";
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // La comprobación de arriba y este insert no son atómicos: dos registros
+            // simultáneos con el mismo correo pasan ambos el AnyAsync y el segundo
+            // choca con el índice único. Sin esto sería un 500 en vez del 409 que el
+            // formulario ya sabe manejar.
+            if (await db.Users.AsNoTracking().AnyAsync(u => u.Email == email, ct))
+                throw AppException.Conflict("Ya existe una cuenta con ese correo.");
+            throw;
+        }
+
+        // Apunta al front (ruta /verificar), que llama al endpoint por debajo y muestra
+        // el resultado con la identidad del sitio.
+        var link = $"{_app.PublicBaseUrl.TrimEnd('/')}/verificar?token={token}";
         await emailSender.SendAsync(
             user.Email,
-            "Verifica tu correo — Boesh Irí",
-            $"<p>Hola {user.FullName}, confirma tu correo para completar tu postulación:</p>" +
-            $"<p><a href=\"{link}\">Verificar correo</a></p>",
+            "Confirma tu correo — Boesh Irí",
+            EmailTemplates.VerificationHtml(user.FullName, link),
+            EmailTemplates.VerificationText(user.FullName, link),
             ct);
 
         logger.LogInformation("Nuevo postulante registrado: {Email}", user.Email);

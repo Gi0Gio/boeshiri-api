@@ -17,6 +17,10 @@ public record RegisterRequest
     [Phone, MaxLength(32)]
     public string? Phone { get; init; }
 
+    /// <summary>Disciplina principal declarada al postularse; editable luego en el perfil.</summary>
+    [MaxLength(80)]
+    public string? Discipline { get; init; }
+
     [MaxLength(1000)]
     public string? ApplicationReason { get; init; }
 }

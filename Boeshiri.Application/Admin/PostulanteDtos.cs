@@ -10,8 +10,14 @@ public record PostulanteDto(
     string FullName,
     string Email,
     string? Phone,
+    string? Discipline,
     string? ApplicationReason,
-    DateTime RegisteredAt);
+    DateTime RegisteredAt,
+    /// <summary>
+    /// Si es falso, la solicitud aún no puede decidirse (RF-PUB-13b), pero se lista
+    /// igual para que la Junta sepa que la persona ya se registró.
+    /// </summary>
+    bool EmailVerified);
 
 /// <summary>Tipo de decisión sobre un postulante.</summary>
 public enum DecisionType
