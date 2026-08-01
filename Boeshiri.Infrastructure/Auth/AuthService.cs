@@ -28,6 +28,14 @@ public class AuthService(
 {
     private readonly AppOptions _app = appOptions.Value;
 
+    private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// Espera mínima entre reenvíos. Sin ella, el endpoint (anónimo por necesidad)
+    /// sería un cañón para inundar el buzón de cualquiera que tenga cuenta aquí.
+    /// </summary>
+    private static readonly TimeSpan ResendCooldown = TimeSpan.FromMinutes(2);
+
     public async Task<RegisterResult> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var email = Normalize(request.Email);
@@ -49,14 +57,15 @@ public class AuthService(
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
-        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var token = NewToken();
         db.Users.Add(user);
         db.VerificationTokens.Add(new VerificationToken
         {
             User = user,
             UserId = user.Id,
             Token = token,
-            ExpiresAt = DateTime.UtcNow.AddHours(24),
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.Add(TokenLifetime),
             Used = false
         });
 
@@ -77,16 +86,74 @@ public class AuthService(
 
         // Apunta al front (ruta /verificar), que llama al endpoint por debajo y muestra
         // el resultado con la identidad del sitio.
+        await SendVerificationEmailAsync(user, token, ct);
+
+        logger.LogInformation("Nuevo postulante registrado: {Email}", user.Email);
+        return new RegisterResult(user.Id, "Cuenta creada. Revisa tu correo para verificar la dirección.");
+    }
+
+    public async Task ResendVerificationAsync(string email, CancellationToken ct = default)
+    {
+        var normalizado = Normalize(email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == normalizado, ct);
+
+        // Salidas en silencio: distinguirlas en la respuesta convertiría el endpoint
+        // en un oráculo para averiguar quién tiene cuenta (enumeración de correos).
+        if (user is null)
+        {
+            logger.LogInformation("Reenvío pedido para un correo sin cuenta: {Email}", normalizado);
+            return;
+        }
+
+        if (user.EmailVerified)
+        {
+            logger.LogInformation("Reenvío pedido para un correo ya verificado: {Email}", normalizado);
+            return;
+        }
+
+        var ahora = DateTime.UtcNow;
+        var reciente = await db.VerificationTokens
+            .AnyAsync(t => t.UserId == user.Id && !t.Used && t.CreatedAt > ahora - ResendCooldown, ct);
+
+        if (reciente)
+        {
+            logger.LogInformation("Reenvío ignorado por espera mínima: {Email}", normalizado);
+            return;
+        }
+
+        // Los enlaces anteriores se anulan: si no, cada reenvío dejaría otro token
+        // vivo y bastaría con interceptar cualquiera de ellos.
+        var previos = await db.VerificationTokens
+            .Where(t => t.UserId == user.Id && !t.Used)
+            .ToListAsync(ct);
+        foreach (var t in previos) t.Used = true;
+
+        var token = NewToken();
+        db.VerificationTokens.Add(new VerificationToken
+        {
+            UserId = user.Id,
+            Token = token,
+            CreatedAt = ahora,
+            ExpiresAt = ahora.Add(TokenLifetime),
+            Used = false
+        });
+        await db.SaveChangesAsync(ct);
+
+        await SendVerificationEmailAsync(user, token, ct);
+        logger.LogInformation("Enlace de verificación reenviado a {Email}", normalizado);
+    }
+
+    private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
+    private Task SendVerificationEmailAsync(User user, string token, CancellationToken ct)
+    {
         var link = $"{_app.PublicBaseUrl.TrimEnd('/')}/verificar?token={token}";
-        await emailSender.SendAsync(
+        return emailSender.SendAsync(
             user.Email,
             "Confirma tu correo — Boesh Irí",
             EmailTemplates.VerificationHtml(user.FullName, link),
             EmailTemplates.VerificationText(user.FullName, link),
             ct);
-
-        logger.LogInformation("Nuevo postulante registrado: {Email}", user.Email);
-        return new RegisterResult(user.Id, "Cuenta creada. Revisa tu correo para verificar la dirección.");
     }
 
     public async Task VerifyEmailAsync(string token, CancellationToken ct = default)

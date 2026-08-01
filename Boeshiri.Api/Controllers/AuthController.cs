@@ -25,6 +25,17 @@ public class AuthController(IAuthService authService) : ControllerBase
         return Ok(new { mensaje = "Correo verificado. Ya puedes iniciar sesión." });
     }
 
+    /// <summary>Reenvía el enlace de verificación (RF-PUB-13b).</summary>
+    [HttpPost("reenviar-verificacion")]
+    public async Task<IActionResult> ResendVerification(ResendVerificationRequest request, CancellationToken ct)
+    {
+        await authService.ResendVerificationAsync(request.Email, ct);
+
+        // Respuesta idéntica exista o no la cuenta: si variara, cualquiera podría
+        // usar este endpoint para averiguar quién está registrado.
+        return Ok(new { mensaje = "Si esa dirección tiene una cuenta sin verificar, te enviamos un enlace nuevo. Revisa tu correo." });
+    }
+
     /// <summary>Inicio de sesión: devuelve un JWT con los permisos efectivos.</summary>
     [HttpPost("login")]
     public async Task<ActionResult<AuthResult>> Login(LoginRequest request, CancellationToken ct)

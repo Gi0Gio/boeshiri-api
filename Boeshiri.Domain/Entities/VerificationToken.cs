@@ -12,6 +12,13 @@ public class VerificationToken
     public User User { get; set; } = null!;
 
     public required string Token { get; set; }
+
+    /// <summary>
+    /// Cuándo se emitió. Se usa para limitar los reenvíos: sin esto, cualquiera
+    /// podría inundar el buzón de un tercero pidiendo enlaces sin parar.
+    /// </summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     public DateTime ExpiresAt { get; set; }
     public bool Used { get; set; }
 }

@@ -12,6 +12,12 @@ public interface IAuthService
     /// <summary>Confirma el correo a partir del token de verificación.</summary>
     Task VerifyEmailAsync(string token, CancellationToken ct = default);
 
+    /// <summary>
+    /// Reemite el enlace de verificación (RF-PUB-13b). No revela si la dirección
+    /// existe ni si ya estaba verificada: siempre termina en silencio.
+    /// </summary>
+    Task ResendVerificationAsync(string email, CancellationToken ct = default);
+
     /// <summary>Valida credenciales y emite un JWT con los permisos efectivos.</summary>
     Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken ct = default);
 

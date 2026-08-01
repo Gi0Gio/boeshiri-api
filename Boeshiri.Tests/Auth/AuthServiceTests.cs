@@ -186,5 +186,116 @@ public class AuthServiceTests : IDisposable
         await DatabaseSeeder.SeedAsync(ctx);
     }
 
+    // ── Reenvío de verificación (RF-PUB-13b) ─────────────────────
+
+    [Fact]
+    public async Task ResendVerification_SendsNewLinkAndInvalidatesPrevious()
+    {
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RegisterAsync(Reg("reenvio@ex.com"));
+
+        // El registro deja el token dentro de la ventana de espera; se envejece
+        // para poder ejercitar el reenvío sin esperar en el test.
+        await using (var ctx = _db.CreateContext())
+        {
+            var t = await ctx.VerificationTokens.SingleAsync();
+            t.CreatedAt = DateTime.UtcNow.AddMinutes(-10);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ResendVerificationAsync("reenvio@ex.com");
+
+        await using var check = _db.CreateContext();
+        var tokens = await check.VerificationTokens.OrderBy(t => t.CreatedAt).ToListAsync();
+
+        Assert.Equal(2, tokens.Count);
+        Assert.True(tokens[0].Used);    // el anterior queda anulado
+        Assert.False(tokens[1].Used);   // solo vale el nuevo
+        Assert.Equal(2, _email.Sent.Count);
+        Assert.Contains(tokens[1].Token, _email.Sent[1].Body);
+    }
+
+    [Fact]
+    public async Task ResendVerification_WithinCooldown_DoesNotSend()
+    {
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RegisterAsync(Reg("rapido@ex.com"));
+
+        // Sin envejecer el token: el reenvío cae dentro de la espera mínima. Sin
+        // esta guarda, el endpoint anónimo permitiría inundar un buzón ajeno.
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ResendVerificationAsync("rapido@ex.com");
+
+        Assert.Single(_email.Sent);
+    }
+
+    [Fact]
+    public async Task ResendVerification_AlreadyVerified_DoesNotSend()
+    {
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RegisterAsync(Reg("verificado@ex.com"));
+
+        await using (var ctx = _db.CreateContext())
+        {
+            var u = await ctx.Users.SingleAsync(u => u.Email == "verificado@ex.com");
+            u.EmailVerified = true;
+            await ctx.SaveChangesAsync();
+        }
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ResendVerificationAsync("verificado@ex.com");
+
+        Assert.Single(_email.Sent);   // solo el del registro
+    }
+
+    [Fact]
+    public async Task ResendVerification_UnknownEmail_SucceedsSilently()
+    {
+        await using var ctx = _db.CreateContext();
+
+        // No lanza: si distinguiera el caso, el endpoint revelaría quién tiene cuenta.
+        await NewService(ctx).ResendVerificationAsync("nadie@ex.com");
+
+        Assert.Empty(_email.Sent);
+    }
+
+    [Fact]
+    public async Task ResendVerification_NewTokenVerifiesAndOldOneFails()
+    {
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RegisterAsync(Reg("cadena@ex.com"));
+
+        string tokenViejo;
+        await using (var ctx = _db.CreateContext())
+        {
+            var t = await ctx.VerificationTokens.SingleAsync();
+            tokenViejo = t.Token;
+            t.CreatedAt = DateTime.UtcNow.AddMinutes(-10);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ResendVerificationAsync("cadena@ex.com");
+
+        // El enlace viejo ya no sirve...
+        await using (var ctx = _db.CreateContext())
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).VerifyEmailAsync(tokenViejo));
+            Assert.Equal(400, ex.StatusCode);
+        }
+
+        // ...y el nuevo sí.
+        string tokenNuevo;
+        await using (var ctx = _db.CreateContext())
+            tokenNuevo = await ctx.VerificationTokens.Where(t => !t.Used).Select(t => t.Token).SingleAsync();
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).VerifyEmailAsync(tokenNuevo);
+
+        await using var check = _db.CreateContext();
+        Assert.True((await check.Users.SingleAsync(u => u.Email == "cadena@ex.com")).EmailVerified);
+    }
+
     public void Dispose() => _db.Dispose();
 }

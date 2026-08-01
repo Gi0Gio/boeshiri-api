@@ -25,6 +25,13 @@ public record RegisterRequest
     public string? ApplicationReason { get; init; }
 }
 
+/// <summary>Petición de reenvío del enlace de verificación (RF-PUB-13b).</summary>
+public record ResendVerificationRequest
+{
+    [Required, EmailAddress, MaxLength(320)]
+    public required string Email { get; init; }
+}
+
 /// <summary>Credenciales de inicio de sesión.</summary>
 public record LoginRequest
 {
