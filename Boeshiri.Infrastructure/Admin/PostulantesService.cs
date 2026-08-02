@@ -1,12 +1,15 @@
+using System.Security.Cryptography;
 using Boeshiri.Application.Admin;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Notifications;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
+using Boeshiri.Infrastructure.Auth;
 using Boeshiri.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Boeshiri.Infrastructure.Admin;
 
@@ -19,9 +22,48 @@ public class PostulantesService(
     BoeshiriDbContext db,
     INotificationService notifications,
     IAuditLogger audit,
+    IOptions<AppOptions> appOptions,
     ILogger<PostulantesService> logger) : IPostulantesService
 {
     private const string BaseMemberRole = "Miembro";
+    private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(24);
+
+    public async Task<VerificationLinkDto> IssueVerificationLinkAsync(Guid postulanteId, Guid actorId, CancellationToken ct = default)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == postulanteId, ct)
+            ?? throw AppException.NotFound("El postulante no existe.");
+
+        if (user.EmailVerified)
+            throw AppException.Conflict("Esta persona ya verificó su correo.");
+
+        // Se anulan los anteriores: si quedaran vivos, cada enlace repartido a mano
+        // sería otra credencial suelta capaz de verificar la cuenta.
+        var previos = await db.VerificationTokens
+            .Where(t => t.UserId == user.Id && !t.Used)
+            .ToListAsync(ct);
+        foreach (var t in previos) t.Used = true;
+
+        var ahora = DateTime.UtcNow;
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        db.VerificationTokens.Add(new VerificationToken
+        {
+            UserId = user.Id,
+            Token = token,
+            CreatedAt = ahora,
+            ExpiresAt = ahora.Add(TokenLifetime),
+            Used = false
+        });
+
+        // Entregar un enlace de verificación es entregar una credencial: queda
+        // registrado quién lo pidió y para quién.
+        audit.Log(actorId, "verificacion.enlace_emitido", "User", user.Id.ToString(), user.Email);
+        await db.SaveChangesAsync(ct);
+
+        var link = $"{appOptions.Value.PublicBaseUrl.TrimEnd('/')}/verificar?token={token}";
+        logger.LogInformation("Enlace de verificación emitido a mano para {Email} por {ActorId}", user.Email, actorId);
+
+        return new VerificationLinkDto(link, user.Phone, user.FullName);
+    }
 
     public async Task<IReadOnlyList<PostulanteDto>> ListPendingAsync(CancellationToken ct = default)
     {

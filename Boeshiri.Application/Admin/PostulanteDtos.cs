@@ -19,6 +19,12 @@ public record PostulanteDto(
     /// </summary>
     bool EmailVerified);
 
+/// <summary>
+/// Enlace de verificación reemitido para entregarlo por otro canal (WhatsApp)
+/// cuando el correo no llega. Incluye el teléfono ya en formato internacional.
+/// </summary>
+public record VerificationLinkDto(string Link, string? Phone, string FullName);
+
 /// <summary>Tipo de decisión sobre un postulante.</summary>
 public enum DecisionType
 {

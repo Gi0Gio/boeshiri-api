@@ -13,4 +13,10 @@ public interface IPostulantesService
     /// (RF-PUB-16); rechazar registra la fecha para la espera de 1 mes (RF-PUB-17).
     /// </summary>
     Task DecideAsync(Guid postulanteId, DecisionRequest request, Guid decidedBy, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reemite el enlace de verificación y lo DEVUELVE, para entregarlo por otro
+    /// canal cuando el correo no llega. Queda en auditoría: entrega una credencial.
+    /// </summary>
+    Task<VerificationLinkDto> IssueVerificationLinkAsync(Guid postulanteId, Guid actorId, CancellationToken ct = default);
 }

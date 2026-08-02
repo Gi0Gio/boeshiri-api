@@ -23,6 +23,7 @@ public class PostulantesServiceTests : IDisposable
         ctx,
         new NotificationService(ctx),
         new AuditLogger(ctx),
+        Microsoft.Extensions.Options.Options.Create(new Boeshiri.Infrastructure.Auth.AppOptions { PublicBaseUrl = "http://test" }),
         NullLogger<PostulantesService>.Instance);
 
     [Fact]
@@ -43,6 +44,45 @@ public class PostulantesServiceTests : IDisposable
         // Los verificados van primero: son los accionables.
         Assert.Equal("pendiente@ex.com", pending[0].Email);
         Assert.DoesNotContain(pending, p => p.Email is "activo@ex.com" or "rechazado@ex.com");
+    }
+
+    [Fact]
+    public async Task IssueVerificationLink_ReturnsFreshLinkAndInvalidatesPrevious()
+    {
+        var id = await CreateUserAsync("sinverificar@ex.com", MemberStatus.Applicant, verified: false);
+        await using (var ctx = _db.CreateContext())
+        {
+            ctx.VerificationTokens.Add(new VerificationToken
+            {
+                UserId = id, Token = "VIEJO", CreatedAt = DateTime.UtcNow, ExpiresAt = DateTime.UtcNow.AddHours(24), Used = false
+            });
+            await ctx.SaveChangesAsync();
+        }
+
+        var actor = Guid.NewGuid();
+        VerificationLinkDto dto;
+        await using (var ctx = _db.CreateContext())
+            dto = await NewService(ctx).IssueVerificationLinkAsync(id, actor);
+
+        await using var check = _db.CreateContext();
+        var viejo = await check.VerificationTokens.SingleAsync(t => t.Token == "VIEJO");
+        var nuevo = await check.VerificationTokens.SingleAsync(t => !t.Used);
+
+        Assert.True(viejo.Used);                        // el repartido antes deja de servir
+        Assert.Contains(nuevo.Token, dto.Link);
+        Assert.Contains("/verificar?token=", dto.Link);
+        // Entregar el enlace es entregar una credencial: tiene que quedar rastro.
+        Assert.Equal(1, await check.AuditEntries.CountAsync(a => a.Action == "verificacion.enlace_emitido" && a.ActorId == actor));
+    }
+
+    [Fact]
+    public async Task IssueVerificationLink_AlreadyVerified_ThrowsConflict()
+    {
+        var id = await CreateUserAsync("yaverificado@ex.com", MemberStatus.Applicant, verified: true);
+
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).IssueVerificationLinkAsync(id, Guid.NewGuid()));
+        Assert.Equal(409, ex.StatusCode);
     }
 
     [Fact]

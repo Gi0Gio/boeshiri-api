@@ -18,6 +18,14 @@ public class PostulantesController(IPostulantesService postulantes) : Controller
     public async Task<ActionResult<IReadOnlyList<PostulanteDto>>> List(CancellationToken ct)
         => Ok(await postulantes.ListPendingAsync(ct));
 
+    /// <summary>
+    /// Emite un enlace de verificación para entregarlo a mano (WhatsApp) cuando el
+    /// correo no llega. Anula los anteriores y queda en auditoría.
+    /// </summary>
+    [HttpPost("{id:guid}/enlace-verificacion")]
+    public async Task<ActionResult<VerificationLinkDto>> IssueVerificationLink(Guid id, CancellationToken ct)
+        => Ok(await postulantes.IssueVerificationLinkAsync(id, User.GetUserId(), ct));
+
     /// <summary>Acepta o rechaza un postulante.</summary>
     [HttpPost("{id:guid}/decidir")]
     public async Task<IActionResult> Decide(Guid id, DecisionRequest request, CancellationToken ct)
