@@ -1,6 +1,9 @@
 using Boeshiri.Application.Auth;
+using Boeshiri.Application.Common;
+using Boeshiri.Infrastructure.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Boeshiri.Api.Controllers;
 
@@ -10,20 +13,41 @@ namespace Boeshiri.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("auth")]
-public class AuthController(IAuthService authService) : ControllerBase
+public class AuthController(IAuthService authService, IOptions<AppOptions> app) : ControllerBase
 {
     /// <summary>Registro / postulación (RF-PUB-13/13b).</summary>
     [HttpPost("registro")]
     public async Task<ActionResult<RegisterResult>> Register(RegisterRequest request, CancellationToken ct)
         => Ok(await authService.RegisterAsync(request, ct));
 
-    /// <summary>Verificación de correo desde el enlace (RF-PUB-13b).</summary>
+    /// <summary>
+    /// Verificación de correo desde el enlace (RF-PUB-13b).
+    ///
+    /// Si lo abre un navegador, redirige a la página del front en vez de mostrar
+    /// JSON crudo: hay enlaces repartidos que apuntan aquí directamente, y quien
+    /// acaba de registrarse no debería aterrizar en una respuesta de API. El front
+    /// llama con Accept: application/json y sigue recibiendo JSON.
+    /// </summary>
     [HttpGet("verificar")]
     public async Task<IActionResult> Verify([FromQuery] string token, CancellationToken ct)
     {
-        await authService.VerifyEmailAsync(token, ct);
-        return Ok(new { mensaje = "Correo verificado. Ya puedes iniciar sesión." });
+        var esNavegacion = Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase);
+
+        try
+        {
+            await authService.VerifyEmailAsync(token, ct);
+        }
+        catch (AppException) when (esNavegacion)
+        {
+            return Redirect($"{FrontBaseUrl}/verificar?estado=invalido");
+        }
+
+        return esNavegacion
+            ? Redirect($"{FrontBaseUrl}/verificar?estado=ok")
+            : Ok(new { mensaje = "Correo verificado. Ya puedes iniciar sesión." });
     }
+
+    private string FrontBaseUrl => app.Value.PublicBaseUrl.TrimEnd('/');
 
     /// <summary>Reenvía el enlace de verificación (RF-PUB-13b).</summary>
     [HttpPost("reenviar-verificacion")]
