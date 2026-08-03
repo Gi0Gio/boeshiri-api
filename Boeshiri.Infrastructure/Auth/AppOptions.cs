@@ -11,4 +11,10 @@ public class AppOptions
     /// endpoint. En producción debe ser el dominio del sitio, p. ej. https://boeshiri.org
     /// </summary>
     public string PublicBaseUrl { get; set; } = "http://localhost:5173";
+
+    /// <summary>
+    /// Buzón que recibe el formulario de contacto (RF-PUB-12). Si está vacío, el
+    /// mensaje solo queda en el log.
+    /// </summary>
+    public string ContactEmail { get; set; } = string.Empty;
 }

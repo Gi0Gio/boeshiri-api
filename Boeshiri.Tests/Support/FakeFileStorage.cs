@@ -22,6 +22,9 @@ public sealed class FakeFileStorage : IFileStorage
         return Task.CompletedTask;
     }
 
+    public Task<Stream?> OpenReadAsync(string publicUrl, CancellationToken ct = default)
+        => Task.FromResult<Stream?>(Objects.Any(o => o.Url == publicUrl) ? new MemoryStream("contenido"u8.ToArray()) : null);
+
     public Task<IReadOnlyList<StoredObject>> ListAsync(string? prefix, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<StoredObject>>(
             string.IsNullOrEmpty(prefix) ? Objects : Objects.Where(o => o.Key.StartsWith(prefix)).ToList());

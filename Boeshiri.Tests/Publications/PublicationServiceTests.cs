@@ -260,6 +260,50 @@ public class PublicationServiceTests : IDisposable
         Assert.Equal(400, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task UpdateAsync_ReplacesReferenceLinks()
+    {
+        var author = await CreateUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
+            {
+                Type = PublicationType.Article, Title = "T", Body = "C",
+                Links = [new LinkInput("Fuente vieja", "https://a.test")],
+            }, canPublishNews: true);
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, author, new UpdatePublicationRequest
+            {
+                Title = "T", Body = "C",
+                Links = [new LinkInput("Fuente nueva", "https://b.test")],
+            });
+
+        await using var check = _db.CreateContext();
+        var links = await check.PublicationLinks.Where(l => l.PublicationId == id).ToListAsync();
+
+        Assert.Single(links);
+        Assert.Equal("Fuente nueva", links[0].Title);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_MoreThanThreeLinks_ThrowsBadRequest()
+    {
+        var author = await CreateUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(author, Article(), canPublishNews: true);
+
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx2).UpdateAsync(id, author, new UpdatePublicationRequest
+        {
+            Title = "T", Body = "C",
+            Links = [new("1", "https://a"), new("2", "https://b"), new("3", "https://c"), new("4", "https://d")],
+        }));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
     private async Task<Guid> CreateUserAsync(string email = "autor@ex.com")
     {

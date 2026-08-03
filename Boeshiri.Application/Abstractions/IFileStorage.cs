@@ -17,6 +17,13 @@ public interface IFileStorage
     /// <summary>Borra un objeto por su URL pública (best-effort; no falla si no existe).</summary>
     Task DeleteAsync(string publicUrl, CancellationToken ct = default);
 
+    /// <summary>
+    /// Abre el contenido de un objeto por su URL pública, para servirlo a través de
+    /// la API cuando la descarga debe verificarse (documentos restringidos, §8).
+    /// Devuelve null si la URL no es del bucket o el objeto no existe.
+    /// </summary>
+    Task<Stream?> OpenReadAsync(string publicUrl, CancellationToken ct = default);
+
     /// <summary>Lista objetos del bucket (gestor del super admin), opcionalmente por prefijo/carpeta.</summary>
     Task<IReadOnlyList<StoredObject>> ListAsync(string? prefix, CancellationToken ct = default);
 

@@ -1,3 +1,4 @@
+using Boeshiri.Application.Abstractions;
 using Boeshiri.Api.Authorization;
 using Boeshiri.Application.Documents;
 using Boeshiri.Domain.Enums;
@@ -13,7 +14,7 @@ namespace Boeshiri.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("documentos")]
-public class DocumentosController(IDocumentService documents) : ControllerBase
+public class DocumentosController(IDocumentService documents, IFileStorage storage) : ControllerBase
 {
     private bool CanViewAdmin => User.HasPermission("documentos.ver_admin");
 
@@ -30,6 +31,27 @@ public class DocumentosController(IDocumentService documents) : ControllerBase
         => Ok(await documents.GetAsync(id, CanViewAdmin, ct));
 
     /// <summary>Sube un documento a la biblioteca (RF-DOC-01/03/06).</summary>
+    /// <summary>
+    /// Descarga el documento a través de la API (SDD §8).
+    ///
+    /// Existe porque los objetos de R2 se sirven por una URL pública: enlazarla
+    /// directo dejaba que cualquiera con el enlace bajara un documento de nivel
+    /// Administración sin sesión. Aquí el permiso se comprueba en CADA descarga.
+    /// </summary>
+    [HasPermission("documentos.ver_comunidad")]
+    [HttpGet("{id:guid}/descargar")]
+    public async Task<IActionResult> Download(Guid id, CancellationToken ct)
+    {
+        // GetAsync ya rechaza los de nivel Administración a quien no puede verlos.
+        var doc = await documents.GetAsync(id, CanViewAdmin, ct);
+
+        var stream = await storage.OpenReadAsync(doc.FileUrl, ct);
+        if (stream is null)
+            return NotFound(new { detail = "El archivo ya no está disponible." });
+
+        return File(stream, doc.ContentType ?? "application/octet-stream", doc.FileName ?? doc.Name, enableRangeProcessing: true);
+    }
+
     [HttpPost]
     public async Task<ActionResult> Create(CreateDocumentRequest request, CancellationToken ct)
     {

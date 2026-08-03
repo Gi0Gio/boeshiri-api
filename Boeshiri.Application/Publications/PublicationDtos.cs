@@ -49,6 +49,9 @@ public record UpdatePublicationRequest
     /// </summary>
     public List<string>? Images { get; init; }
 
+    /// <summary>Lista completa de enlaces tras la edición. Null = dejarlos como están.</summary>
+    public List<LinkInput>? Links { get; init; }
+
     public List<string>? Tags { get; init; }
 }
 

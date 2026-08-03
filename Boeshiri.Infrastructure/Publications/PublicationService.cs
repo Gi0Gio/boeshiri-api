@@ -107,8 +107,13 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
         var p = await db.Publications
             .Include(x => x.Tags)
             .Include(x => x.Images)
+            .Include(x => x.Links)
             .FirstOrDefaultAsync(x => x.Id == id && x.AuthorId == authorId, ct)
             ?? throw AppException.NotFound("La publicación no existe o no es tuya.");
+
+        // Mismo límite que al crear (§4.3): editando no se saltan las reglas del alta.
+        if (request.Links is not null && request.Links.Count > 3)
+            throw AppException.BadRequest("Máximo 3 enlaces de referencia.");
 
         // El tipo no cambia al editar, así que las reglas se validan contra el que
         // ya tiene: sin esto se podría dejar una Foto sin ninguna imagen.
@@ -145,6 +150,14 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
                 else
                     db.PublicationImages.Add(new PublicationImage { PublicationId = p.Id, Url = url, Order = order++ });
             }
+        }
+
+        if (request.Links is not null)
+        {
+            // Los enlaces no son archivos: se reemplazan enteros sin más ceremonia.
+            db.PublicationLinks.RemoveRange(p.Links);
+            foreach (var l in request.Links)
+                db.PublicationLinks.Add(new PublicationLink { PublicationId = p.Id, Title = l.Title.Trim(), Url = l.Url.Trim() });
         }
 
         p.EditedAt = DateTime.UtcNow;

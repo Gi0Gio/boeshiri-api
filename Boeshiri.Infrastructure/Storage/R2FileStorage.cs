@@ -79,6 +79,24 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
         return DeleteByKeyAsync(publicUrl[prefix.Length..], ct);
     }
 
+    public async Task<Stream?> OpenReadAsync(string publicUrl, CancellationToken ct = default)
+    {
+        var prefix = _o.PublicBaseUrl.TrimEnd('/') + "/";
+        if (string.IsNullOrWhiteSpace(publicUrl) || !publicUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return null;   // no es un objeto nuestro
+
+        try
+        {
+            var r = await _client.GetObjectAsync(_o.Bucket, publicUrl[prefix.Length..], ct);
+            return r.ResponseStream;
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo leer {Url} de R2", publicUrl);
+            return null;
+        }
+    }
+
     public async Task<IReadOnlyList<StoredObject>> ListAsync(string? prefix, CancellationToken ct = default)
     {
         var request = new ListObjectsV2Request { BucketName = _o.Bucket, Prefix = prefix, MaxKeys = 1000 };
@@ -125,6 +143,8 @@ public sealed class DisabledFileStorage : IFileStorage
         => throw AppException.BadRequest("El almacenamiento de archivos no está configurado todavía.");
 
     public Task DeleteAsync(string publicUrl, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task<Stream?> OpenReadAsync(string publicUrl, CancellationToken ct = default) => Task.FromResult<Stream?>(null);
 
     public Task<IReadOnlyList<StoredObject>> ListAsync(string? prefix, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<StoredObject>>([]);
