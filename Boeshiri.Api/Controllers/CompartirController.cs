@@ -28,7 +28,15 @@ public class CompartirController(
     IOptions<AppOptions> app) : ControllerBase
 {
     private string Front => app.Value.PublicBaseUrl.TrimEnd('/');
-    private string ApiBase => $"{Request.Scheme}://{Request.Host}";
+
+    /// <summary>
+    /// La imagen se anuncia bajo el dominio del SITIO, no el de la API: el front
+    /// redirige /compartir/* por proxy, así que la URL resuelve igual y el enlace
+    /// compartido no expone la infraestructura. Derivarla de Request.Host daría
+    /// además "http" —Railway termina el TLS en el borde— y varias apps descartan
+    /// una og:image no segura.
+    /// </summary>
+    private string ImagenBase => Front;
 
     // ── Anuncios del marketplace ─────────────────────────────────
 
@@ -39,7 +47,7 @@ public class CompartirController(
         return Html(
             titulo: p.Name,
             descripcion: $"{(p.Kind == Boeshiri.Domain.Enums.ListingKind.Service ? "Servicio" : "Producto")} de {p.SellerName} · {Precio(p.Price, p.PriceMax)}",
-            imagen: $"{ApiBase}/compartir/producto/{id}/imagen.png",
+            imagen: $"{ImagenBase}/compartir/producto/{id}/imagen.png",
             destino: $"{Front}/marketplace/{id}");
     }
 
@@ -67,7 +75,7 @@ public class CompartirController(
         return Html(
             titulo: p.Title,
             descripcion: $"{Tipo(p.Type)} de {p.AuthorName}",
-            imagen: $"{ApiBase}/compartir/publicacion/{id}/imagen.png",
+            imagen: $"{ImagenBase}/compartir/publicacion/{id}/imagen.png",
             destino: $"{Front}/publicaciones/{id}");
     }
 
