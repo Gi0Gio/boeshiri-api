@@ -15,9 +15,10 @@ namespace Boeshiri.Tests.Marketplace;
 public class MarketplaceServiceTests : IDisposable
 {
     private readonly TestDb _db = new();
+    private readonly FakeFileStorage _storage = new();
 
     private MarketplaceService NewService(BoeshiriDbContext ctx) =>
-        new(ctx, new AuditLogger(ctx), Options.Create(new AppOptions { PublicBaseUrl = "http://test" }));
+        new(ctx, new AuditLogger(ctx), _storage, Options.Create(new AppOptions { PublicBaseUrl = "http://test" }));
 
     private static CreateProductRequest Req(string name = "Lamina", string category = "Arte", decimal price = 25m) =>
         new() { Name = name, Category = category, Price = price, Description = "d", DeliveryLocation = "David" };
@@ -43,6 +44,53 @@ public class MarketplaceServiceTests : IDisposable
 
         await using var check = _db.CreateContext();
         Assert.True(await check.Products.AnyAsync(p => p.Id == id && p.Status == ProductStatus.Published));
+    }
+
+    /// <summary>
+    /// Al editar se manda la lista completa: lo que no viene se va del bucket, lo
+    /// que se queda conserva su fila (no se vacía y se recrea) y lo nuevo se añade.
+    /// </summary>
+    [Fact]
+    public async Task UpdateAsync_ReemplazaImagenesYBorraLasQueSalen()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(seller, Req() with { Images = ["https://cdn.test/a.png", "https://cdn.test/b.png"] });
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, seller, new UpdateProductRequest
+            {
+                Name = "Lamina",
+                Category = "Arte",
+                Price = 25m,
+                Images = ["https://cdn.test/b.png", "https://cdn.test/c.png"]
+            });
+
+        await using var check = _db.CreateContext();
+        var urls = await check.ProductImages.Where(i => i.ProductId == id).OrderBy(i => i.Order).Select(i => i.Url).ToListAsync();
+
+        Assert.Equal(["https://cdn.test/b.png", "https://cdn.test/c.png"], urls);
+        Assert.Equal(["https://cdn.test/a.png"], _storage.Deleted);
+    }
+
+    /// <summary>Sin el campo, las imágenes se quedan como estaban.</summary>
+    [Fact]
+    public async Task UpdateAsync_SinImagenes_LasConserva()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(seller, Req() with { Images = ["https://cdn.test/a.png"] });
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, seller, new UpdateProductRequest { Name = "Otra", Category = "Arte", Price = 30m });
+
+        await using var check = _db.CreateContext();
+        Assert.Single(await check.ProductImages.Where(i => i.ProductId == id).ToListAsync());
+        Assert.Empty(_storage.Deleted);
     }
 
     [Fact]

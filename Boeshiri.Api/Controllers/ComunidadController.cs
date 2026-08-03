@@ -13,10 +13,13 @@ namespace Boeshiri.Api.Controllers;
 [Route("comunidad")]
 public class ComunidadController(IProfileService profiles) : ControllerBase
 {
-    /// <summary>Lista los perfiles públicos de miembros activos.</summary>
+    /// <summary>
+    /// Perfiles públicos de miembros activos. Con <c>?rol=</c> se acota a quienes
+    /// llevan ese rol, que es como el sitio arma la sección de la Junta Directiva.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<CommunityMemberDto>>> List(CancellationToken ct)
-        => Ok(await profiles.ListCommunityAsync(ct));
+    public async Task<ActionResult<IReadOnlyList<CommunityMemberDto>>> List([FromQuery] string? rol, CancellationToken ct)
+        => Ok(await profiles.ListCommunityAsync(rol, ct));
 
     /// <summary>Perfil público de un miembro (filtrado por su privacidad).</summary>
     [HttpGet("{id:guid}")]

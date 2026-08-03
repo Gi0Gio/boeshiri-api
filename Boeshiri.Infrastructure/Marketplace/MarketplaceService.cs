@@ -1,3 +1,4 @@
+using Boeshiri.Application.Abstractions;
 using System.Linq.Expressions;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
@@ -15,6 +16,7 @@ namespace Boeshiri.Infrastructure.Marketplace;
 public class MarketplaceService(
     BoeshiriDbContext db,
     IAuditLogger audit,
+    IFileStorage storage,
     IOptions<AppOptions> appOptions) : IMarketplaceService
 {
     private const int MaxImages = 5;
@@ -116,11 +118,16 @@ public class MarketplaceService(
 
     public async Task UpdateAsync(Guid id, Guid userId, UpdateProductRequest request, CancellationToken ct = default)
     {
-        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && x.SellerId == userId, ct)
+        var p = await db.Products
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id && x.SellerId == userId, ct)
             ?? throw AppException.NotFound("El producto no existe o no es tuyo.");
 
         // El tipo no cambia al editar, así que el rango se valida contra el que tiene.
         ValidatePriceRange(p.Kind, request.Price, request.PriceMax);
+
+        if (request.Images is not null && request.Images.Count > MaxImages)
+            throw AppException.BadRequest($"Máximo {MaxImages} imágenes por producto.");
 
         p.Name = request.Name.Trim();
         p.Category = request.Category.Trim();
@@ -130,7 +137,33 @@ public class MarketplaceService(
         p.DeliveryLocation = request.DeliveryLocation;
         p.EditedAt = DateTime.UtcNow;
 
+        var eliminadas = new List<string>();
+        if (request.Images is not null)
+        {
+            // Se comparan contra las actuales en vez de vaciar y recrear: vaciar la
+            // colección deja huérfanos que EF resuelve por su cuenta, y destruiría
+            // filas que no cambiaron.
+            var actuales = p.Images.ToList();
+            eliminadas = actuales.Select(i => i.Url).Except(request.Images).ToList();
+
+            foreach (var img in actuales.Where(i => eliminadas.Contains(i.Url)))
+                db.ProductImages.Remove(img);
+
+            var order = 0;
+            foreach (var url in request.Images)
+            {
+                var existente = actuales.FirstOrDefault(i => i.Url == url);
+                if (existente is not null) existente.Order = order++;
+                else db.ProductImages.Add(new ProductImage { ProductId = p.Id, Url = url, Order = order++ });
+            }
+        }
+
         await db.SaveChangesAsync(ct);
+
+        // Después de guardar: si el borrado remoto falla queda un huérfano, no una
+        // referencia rota.
+        foreach (var url in eliminadas)
+            await storage.DeleteAsync(url, ct);
     }
 
     public async Task ChangeStatusAsync(Guid id, ProductStatusAction action, Guid userId, bool canModerate, CancellationToken ct = default)

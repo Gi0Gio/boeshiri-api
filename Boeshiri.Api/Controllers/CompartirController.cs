@@ -1,3 +1,4 @@
+using Boeshiri.Application.Common;
 using System.Net;
 using Boeshiri.Application.Abstractions;
 using Boeshiri.Application.Marketplace;
@@ -43,7 +44,10 @@ public class CompartirController(
     [HttpGet("producto/{id:guid}")]
     public async Task<IActionResult> Producto(Guid id, CancellationToken ct)
     {
-        var p = await marketplace.GetDetailAsync(id, ct);
+        ProductDetailDto p;
+        try { p = await marketplace.GetDetailAsync(id, ct); }
+        catch (AppException) { return NoExiste($"{Front}/marketplace"); }
+
         return Html(
             titulo: p.Name,
             descripcion: $"{(p.Kind == Boeshiri.Domain.Enums.ListingKind.Service ? "Servicio" : "Producto")} de {p.SellerName} · {Precio(p.Price, p.PriceMax)}",
@@ -71,7 +75,10 @@ public class CompartirController(
     [HttpGet("publicacion/{id:guid}")]
     public async Task<IActionResult> Publicacion(Guid id, CancellationToken ct)
     {
-        var p = await publications.GetDetailAsync(id, authenticated: false, ct);
+        PublicationDetailDto p;
+        try { p = await publications.GetDetailAsync(id, authenticated: false, ct); }
+        catch (AppException) { return NoExiste($"{Front}/explorar"); }
+
         return Html(
             titulo: p.Title,
             descripcion: $"{Tipo(p.Type)} de {p.AuthorName}",
@@ -114,6 +121,13 @@ public class CompartirController(
         Boeshiri.Domain.Enums.PublicationType.Music => "Música",
         _ => "Publicación"
     };
+
+    /// <summary>
+    /// Contenido borrado, oculto o inexistente. Estas rutas las abre gente desde un
+    /// enlace de WhatsApp, así que devolver el problem+json crudo sería enseñarle
+    /// un volcado de la API. Se manda al sitio, que ya sabe explicarlo.
+    /// </summary>
+    private IActionResult NoExiste(string destino) => Redirect(destino);
 
     private IActionResult Imagen(byte[] bytes)
     {

@@ -54,6 +54,12 @@ public record UpdateProductRequest
 
     [MaxLength(200)]
     public string? DeliveryLocation { get; init; }
+
+    /// <summary>
+    /// Lista completa de imágenes tras la edición: lo que no venga se elimina,
+    /// también del bucket. Null = dejarlas como están.
+    /// </summary>
+    public List<string>? Images { get; init; }
 }
 
 /// <summary>Acción sobre el estado del producto (RF-MKT-05).</summary>

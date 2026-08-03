@@ -16,7 +16,7 @@ public interface IProfileService
     Task UpdateSocialLinksAsync(Guid userId, UpdateSocialLinksRequest request, CancellationToken ct = default);
 
     /// <summary>Lista los perfiles públicos de miembros activos (RF-PUB-09).</summary>
-    Task<IReadOnlyList<CommunityMemberDto>> ListCommunityAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<CommunityMemberDto>> ListCommunityAsync(string? role = null, CancellationToken ct = default);
 
     /// <summary>Perfil público de un miembro, filtrado por su privacidad.</summary>
     Task<PublicProfileDto> GetPublicProfileAsync(Guid userId, CancellationToken ct = default);

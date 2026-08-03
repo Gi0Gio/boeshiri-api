@@ -92,7 +92,7 @@ public record UpdateSocialLinksRequest
 
 // ── Comunidad (perfiles públicos, RF-PUB-09) ─────────────────────
 
-public record CommunityMemberDto(Guid Id, string FullName, string? Discipline, string? PhotoUrl, IReadOnlyList<string> Tags);
+public record CommunityMemberDto(Guid Id, string FullName, string? Discipline, string? PhotoUrl, IReadOnlyList<string> Tags, IReadOnlyList<string> Roles);
 
 public record PublicSocialLinkDto(SocialNetworkType Type, string Value);
 public record ProfileGalleryItemDto(Guid Id, PublicationType Type, string Title, string? CoverImage);

@@ -103,12 +103,21 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyList<CommunityMemberDto>> ListCommunityAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<CommunityMemberDto>> ListCommunityAsync(string? role = null, CancellationToken ct = default)
     {
-        return await db.Users
-            .Where(u => u.Status == MemberStatus.Active)
+        var query = db.Users.Where(u => u.Status == MemberStatus.Active);
+
+        // Filtro por rol: alimenta la sección de la Junta Directiva en "Sobre",
+        // que si no habría que mantener a mano en el contenido estático.
+        if (!string.IsNullOrWhiteSpace(role))
+            query = query.Where(u => u.UserRoles.Any(ur => ur.Role.Name == role));
+
+        return await query
             .OrderBy(u => u.FullName)
-            .Select(u => new CommunityMemberDto(u.Id, u.FullName, u.Discipline, u.PhotoUrl, u.Tags.Select(t => t.Name).ToList()))
+            .Select(u => new CommunityMemberDto(
+                u.Id, u.FullName, u.Discipline, u.PhotoUrl,
+                u.Tags.Select(t => t.Name).ToList(),
+                u.UserRoles.Select(ur => ur.Role.Name).ToList()))
             .ToListAsync(ct);
     }
 
