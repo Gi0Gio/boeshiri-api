@@ -168,18 +168,6 @@ public class MarketplaceService(
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<ProductShareDto> GetShareAsync(Guid id, CancellationToken ct = default)
-    {
-        var share = await db.Products
-            .Where(p => p.Id == id && (p.Status == ProductStatus.Published || p.Status == ProductStatus.Sold))
-            .Select(p => new ProductShareDto(
-                $"{_app.PublicBaseUrl}/marketplace/{p.Id}",
-                p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault()))
-            .FirstOrDefaultAsync(ct);
-
-        return share ?? throw AppException.NotFound("El producto no está disponible.");
-    }
-
     // ── Helpers ──────────────────────────────────────────────────
     /// <summary>
     /// El rango de precios existe solo para servicios: su costo depende del alcance

@@ -106,5 +106,3 @@ public record ProductDetailDto(
     SellerContactDto Contact,
     IReadOnlyList<string> Images);
 
-/// <summary>Enlace + imagen listos para compartir en redes (RF-MKT-05).</summary>
-public record ProductShareDto(string Url, string? Image);

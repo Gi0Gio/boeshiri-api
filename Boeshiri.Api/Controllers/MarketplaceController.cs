@@ -38,12 +38,6 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
     public async Task<ActionResult<ProductDetailDto>> Detail(Guid id, CancellationToken ct)
         => Ok(await marketplace.GetDetailAsync(id, ct));
 
-    /// <summary>Enlace + imagen para compartir en redes (RF-MKT-05).</summary>
-    [HttpGet("{id:guid}/compartir")]
-    [AllowAnonymous]
-    public async Task<ActionResult<ProductShareDto>> Share(Guid id, CancellationToken ct)
-        => Ok(await marketplace.GetShareAsync(id, ct));
-
     /// <summary>Alta del miembro en el marketplace (RF-MKT-03).</summary>
     [HasPermission("marketplace.gestionar_propio")]
     [HttpPost("alta")]

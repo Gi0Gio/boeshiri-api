@@ -29,5 +29,4 @@ public interface IMarketplaceService
     Task ChangeStatusAsync(Guid id, ProductStatusAction action, Guid userId, bool canModerate, CancellationToken ct = default);
 
     /// <summary>Genera enlace + imagen para compartir (RF-MKT-05).</summary>
-    Task<ProductShareDto> GetShareAsync(Guid id, CancellationToken ct = default);
 }
