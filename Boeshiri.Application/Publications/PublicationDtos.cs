@@ -42,6 +42,13 @@ public record UpdatePublicationRequest
 
     public Visibility Visibility { get; init; } = Visibility.Public;
 
+    /// <summary>
+    /// Lista completa de imágenes tras la edición: lo que no venga se elimina.
+    /// Si es <c>null</c> las imágenes se dejan como están, para no romper a quien
+    /// envíe el formulario sin este campo.
+    /// </summary>
+    public List<string>? Images { get; init; }
+
     public List<string>? Tags { get; init; }
 }
 

@@ -14,7 +14,9 @@ public class PublicationServiceTests : IDisposable
 {
     private readonly TestDb _db = new();
 
-    private PublicationService NewService(BoeshiriDbContext ctx) => new(ctx, new AuditLogger(ctx));
+    private readonly FakeFileStorage _storage = new();
+
+    private PublicationService NewService(BoeshiriDbContext ctx) => new(ctx, new AuditLogger(ctx), _storage);
 
     private static CreatePublicationRequest Article(string title = "Título", string? body = "Cuerpo", Visibility vis = Visibility.Public, List<string>? tags = null) =>
         new() { Type = PublicationType.Article, Title = title, Body = body, Visibility = vis, Tags = tags };
@@ -165,6 +167,97 @@ public class PublicationServiceTests : IDisposable
         var pub = await check.Publications.SingleAsync(p => p.Id == id);
         Assert.Equal(ContentStatus.Hidden, pub.Status);
         Assert.Equal(1, await check.AuditEntries.CountAsync(a => a.Action == "publicacion.moderada" && a.ActorId == moderator));
+    }
+
+    // ── Edición de imágenes (RF-MEM-12, §4.3) ────────────────────
+
+    [Fact]
+    public async Task UpdateAsync_ReplacesImagesAndDeletesTheRemovedOnes()
+    {
+        var author = await CreateUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
+            {
+                Type = PublicationType.Article, Title = "Con fotos", Body = "Cuerpo",
+                Images = ["https://cdn.test/a.webp", "https://cdn.test/b.webp"],
+            }, canPublishNews: true);
+
+        // Se queda la primera, se retira la segunda y entra una nueva.
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, author, new UpdatePublicationRequest
+            {
+                Title = "Con fotos", Body = "Cuerpo",
+                Images = ["https://cdn.test/a.webp", "https://cdn.test/c.webp"],
+            });
+
+        await using var check = _db.CreateContext();
+        var imgs = await check.PublicationImages.Where(i => i.PublicationId == id).OrderBy(i => i.Order).ToListAsync();
+
+        Assert.Equal(["https://cdn.test/a.webp", "https://cdn.test/c.webp"], imgs.Select(i => i.Url));
+        // La retirada deja de estar referenciada: sin borrarla, cada edición
+        // acumularía archivos que ya nadie puede ver.
+        Assert.Equal(["https://cdn.test/b.webp"], _storage.Deleted);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithoutImagesField_LeavesThemUntouched()
+    {
+        var author = await CreateUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
+            {
+                Type = PublicationType.Article, Title = "T", Body = "C",
+                Images = ["https://cdn.test/a.webp"],
+            }, canPublishNews: true);
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, author, new UpdatePublicationRequest { Title = "Otro", Body = "C" });
+
+        await using var check = _db.CreateContext();
+        Assert.Single(await check.PublicationImages.Where(i => i.PublicationId == id).ToListAsync());
+        Assert.Empty(_storage.Deleted);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_MoreThanThreeImages_ThrowsBadRequest()
+    {
+        var author = await CreateUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(author, Article(), canPublishNews: true);
+
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx2).UpdateAsync(id, author, new UpdatePublicationRequest
+        {
+            Title = "T", Body = "C",
+            Images = ["1", "2", "3", "4"],
+        }));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PhotoLeftWithoutImages_ThrowsBadRequest()
+    {
+        var author = await CreateUserAsync();
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
+            {
+                Type = PublicationType.Photo, Title = "Foto",
+                Images = ["https://cdn.test/a.webp"],
+            }, canPublishNews: true);
+
+        // El tipo no cambia al editar, así que la regla del alta sigue aplicando.
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx2).UpdateAsync(id, author, new UpdatePublicationRequest
+        {
+            Title = "Foto", Images = [],
+        }));
+
+        Assert.Equal(400, ex.StatusCode);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

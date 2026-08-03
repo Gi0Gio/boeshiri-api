@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Boeshiri.Application.Abstractions;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Publications;
@@ -10,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Boeshiri.Infrastructure.Publications;
 
 /// <summary>Publicaciones (§6). Reglas por tipo, visibilidad y moderación con auditoría.</summary>
-public class PublicationService(BoeshiriDbContext db, IAuditLogger audit) : IPublicationService
+public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileStorage storage) : IPublicationService
 {
     public async Task<Guid> CreateAsync(Guid authorId, CreatePublicationRequest request, bool canPublishNews, CancellationToken ct = default)
     {
@@ -105,8 +106,14 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit) : IPub
     {
         var p = await db.Publications
             .Include(x => x.Tags)
+            .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id && x.AuthorId == authorId, ct)
             ?? throw AppException.NotFound("La publicación no existe o no es tuya.");
+
+        // El tipo no cambia al editar, así que las reglas se validan contra el que
+        // ya tiene: sin esto se podría dejar una Foto sin ninguna imagen.
+        if (request.Images is not null)
+            ValidateImages(p.Type, request.Images.Count);
 
         p.Title = request.Title.Trim();
         p.Body = request.Body;
@@ -117,8 +124,37 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit) : IPub
         foreach (var name in NormalizeTags(request.Tags))
             p.Tags.Add(await GetOrCreateTagAsync(name, ct));
 
+        var eliminadas = new List<string>();
+        if (request.Images is not null)
+        {
+            // El cliente manda la lista final. Se comparan contra las actuales en vez
+            // de vaciar y recrear: vaciar la colección deja huérfanos que EF resuelve
+            // por su cuenta, y además destruiría filas que no han cambiado.
+            var actuales = p.Images.ToList();
+            eliminadas = actuales.Select(i => i.Url).Except(request.Images).ToList();
+
+            foreach (var img in actuales.Where(i => eliminadas.Contains(i.Url)))
+                db.PublicationImages.Remove(img);
+
+            var order = 0;
+            foreach (var url in request.Images)
+            {
+                var existente = actuales.FirstOrDefault(i => i.Url == url);
+                if (existente is not null)
+                    existente.Order = order++;          // solo se reordena
+                else
+                    db.PublicationImages.Add(new PublicationImage { PublicationId = p.Id, Url = url, Order = order++ });
+            }
+        }
+
         p.EditedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+
+        // Después de guardar: las que salieron ya no están referenciadas, y si el
+        // borrado remoto falla solo sobra un objeto en el bucket. Al revés se
+        // perdería el archivo con la edición aún sin confirmar.
+        foreach (var url in eliminadas)
+            await storage.DeleteAsync(url, ct);
     }
 
     public async Task ChangeStatusAsync(Guid id, StatusAction action, Guid userId, bool canModerate, CancellationToken ct = default)
@@ -156,22 +192,40 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit) : IPub
         p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault(),
         p.Tags.Select(t => t.Name).ToList());
 
+    /// <summary>
+    /// Límites de imágenes por tipo (§4.3). Compartido por el alta y la edición:
+    /// duplicarlos dejaría que al editar se saltaran las reglas del alta.
+    /// </summary>
+    private static void ValidateImages(PublicationType type, int count)
+    {
+        switch (type)
+        {
+            case PublicationType.Article:
+            case PublicationType.News:
+                if (count > 3)
+                    throw AppException.BadRequest("Máximo 3 imágenes.");
+                break;
+            case PublicationType.Photo:
+                if (count < 1)
+                    throw AppException.BadRequest("Una publicación de tipo Foto requiere al menos una imagen.");
+                if (count > 3)
+                    throw AppException.BadRequest("Máximo 3 imágenes.");
+                break;
+        }
+    }
+
     private static void ValidateByType(CreatePublicationRequest r)
     {
+        ValidateImages(r.Type, r.Images?.Count ?? 0);
+
         switch (r.Type)
         {
             case PublicationType.Article:
             case PublicationType.News:
                 if (string.IsNullOrWhiteSpace(r.Body))
                     throw AppException.BadRequest("El cuerpo es obligatorio para artículos y noticias.");
-                if ((r.Images?.Count ?? 0) > 3)
-                    throw AppException.BadRequest("Máximo 3 imágenes.");
                 if ((r.Links?.Count ?? 0) > 3)
                     throw AppException.BadRequest("Máximo 3 enlaces de referencia.");
-                break;
-            case PublicationType.Photo:
-                if ((r.Images?.Count ?? 0) < 1)
-                    throw AppException.BadRequest("Una publicación de tipo Foto requiere al menos una imagen.");
                 break;
             case PublicationType.Video:
             case PublicationType.Music:
