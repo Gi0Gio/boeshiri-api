@@ -58,8 +58,8 @@ public class MarketplaceServiceTests : IDisposable
         }
 
         await using var ctx2 = _db.CreateContext();
-        var arte = await NewService(ctx2).ListPublicAsync(name: null, category: "Arte");
-        var musica = await NewService(ctx2).ListPublicAsync(name: null, category: "Musica");
+        var arte = await NewService(ctx2).ListPublicAsync(name: null, category: "Arte", sellerId: null);
+        var musica = await NewService(ctx2).ListPublicAsync(name: null, category: "Musica", sellerId: null);
 
         Assert.Single(arte);
         Assert.Empty(musica); // el de Música quedó oculto

@@ -115,4 +115,16 @@ public record PublicProfileDto(
     IReadOnlyList<PublicSocialLinkDto> SocialLinks,
     IReadOnlyList<string> Commissions,
     IReadOnlyList<ProfileEventDto> EventHistory,
-    IReadOnlyList<ProfileGalleryItemDto> Gallery);
+    IReadOnlyList<ProfileGalleryItemDto> Gallery,
+    /// <summary>Anuncios publicados en el marketplace. Vacío si no vende o no tiene ninguno.</summary>
+    IReadOnlyList<ProfileListingDto> Marketplace);
+
+/// <summary>Anuncio del miembro para mostrarlo en su perfil (§9).</summary>
+public record ProfileListingDto(
+    Guid Id,
+    ListingKind Kind,
+    string Name,
+    string Category,
+    decimal Price,
+    decimal? PriceMax,
+    string? CoverImage);

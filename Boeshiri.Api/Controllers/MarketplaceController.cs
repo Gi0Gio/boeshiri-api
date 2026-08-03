@@ -16,8 +16,9 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
     /// <summary>Catálogo público, filtrable por nombre y categoría (RF-MKT-01).</summary>
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<IReadOnlyList<ProductSummaryDto>>> List([FromQuery] string? nombre, [FromQuery] string? categoria, CancellationToken ct)
-        => Ok(await marketplace.ListPublicAsync(nombre, categoria, ct));
+    public async Task<ActionResult<IReadOnlyList<ProductSummaryDto>>> List(
+        [FromQuery] string? nombre, [FromQuery] string? categoria, [FromQuery] Guid? vendedor, CancellationToken ct)
+        => Ok(await marketplace.ListPublicAsync(nombre, categoria, vendedor, ct));
 
     /// <summary>Productos propios (todos los estados).</summary>
     [Authorize]

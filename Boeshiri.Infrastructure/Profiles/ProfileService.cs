@@ -154,6 +154,18 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
                 p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault()))
             .ToListAsync(ct);
 
+        // Solo si se dio de alta como vendedor: sin eso, los anuncios que pudiera
+        // tener de antes no deben reaparecer en su perfil.
+        var marketplace = user.MarketplaceActive
+            ? await db.Products
+                .Where(p => p.SellerId == userId && p.Status == ProductStatus.Published)
+                .OrderByDescending(p => p.CreatedAt)
+                .Select(p => new ProfileListingDto(
+                    p.Id, p.Kind, p.Name, p.Category, p.Price, p.PriceMax,
+                    p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault()))
+                .ToListAsync(ct)
+            : [];
+
         return new PublicProfileDto(
             user.Id, user.FullName, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Location,
             user.UserRoles.Select(ur => ur.Role.Name).ToList(),
@@ -161,7 +173,7 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
             user.Skills.OrderBy(s => s.Order).Select(s => new SkillDto(s.Name, s.Level)).ToList(),
             user.ShowPhone ? user.Phone : null,
             user.ShowEmail ? user.Email : null,
-            socialLinks, commissions, history, gallery);
+            socialLinks, commissions, history, gallery, marketplace);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

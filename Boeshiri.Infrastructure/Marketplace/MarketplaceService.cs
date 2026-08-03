@@ -28,7 +28,7 @@ public class MarketplaceService(
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyList<ProductSummaryDto>> ListPublicAsync(string? name, string? category, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ProductSummaryDto>> ListPublicAsync(string? name, string? category, Guid? sellerId, CancellationToken ct = default)
     {
         var query = db.Products.Where(p => p.Status == ProductStatus.Published);
 
@@ -39,6 +39,11 @@ public class MarketplaceService(
         }
         if (!string.IsNullOrWhiteSpace(category))
             query = query.Where(p => p.Category == category);
+
+        // Filtro por vendedor: alimenta el "ver todo lo de esta persona" desde la
+        // ficha de un anuncio o desde su perfil.
+        if (sellerId is not null)
+            query = query.Where(p => p.SellerId == sellerId);
 
         return await query.OrderByDescending(p => p.CreatedAt).Select(ToSummary).ToListAsync(ct);
     }

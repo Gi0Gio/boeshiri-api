@@ -10,7 +10,7 @@ public interface IMarketplaceService
     /// <summary>Da de alta al miembro en el marketplace (RF-MKT-03).</summary>
     Task EnrollAsync(Guid userId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ProductSummaryDto>> ListPublicAsync(string? name, string? category, CancellationToken ct = default);
+    Task<IReadOnlyList<ProductSummaryDto>> ListPublicAsync(string? name, string? category, Guid? sellerId, CancellationToken ct = default);
 
     /// <summary>Detalle con los datos de contacto del vendedor (RF-MKT-02).</summary>
     Task<ProductDetailDto> GetDetailAsync(Guid id, CancellationToken ct = default);
