@@ -18,7 +18,16 @@ public class Product
 
     public required string Name { get; set; }
     public required string Category { get; set; }
+
+    /// <summary>Precio, o mínimo del rango cuando hay <see cref="PriceMax"/>.</summary>
     public decimal Price { get; set; }
+
+    /// <summary>
+    /// Máximo del rango. Solo para servicios: su costo depende del alcance, y
+    /// obligar a un precio único fuerza a inventarse una cifra. Null = precio fijo.
+    /// </summary>
+    public decimal? PriceMax { get; set; }
+
     public string? Description { get; set; }
 
     /// <summary>Ubicación de entrega (producto) o modalidad/lugar (servicio) (RF-MKT-04).</summary>

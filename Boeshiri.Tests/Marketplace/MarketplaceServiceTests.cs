@@ -154,6 +154,93 @@ public class MarketplaceServiceTests : IDisposable
         Assert.Equal(403, ex.StatusCode);
     }
 
+    // ── Servicios: rango de precios y ausencia de "vendido" ──────
+
+    [Fact]
+    public async Task CreateAsync_ServiceWithPriceRange_IsAccepted()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(seller, new CreateProductRequest
+            {
+                Kind = ListingKind.Service, Name = "Tutorías", Category = "Educación",
+                Price = 20m, PriceMax = 50m,
+            });
+
+        await using var check = _db.CreateContext();
+        var p = await check.Products.SingleAsync(x => x.Id == id);
+        Assert.Equal(20m, p.Price);
+        Assert.Equal(50m, p.PriceMax);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ProductWithPriceRange_ThrowsBadRequest()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+
+        // Un bien físico tiene un precio y punto; el rango es cosa de servicios.
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).CreateAsync(seller, new CreateProductRequest
+        {
+            Kind = ListingKind.Product, Name = "Lámina", Category = "Arte", Price = 20m, PriceMax = 50m,
+        }));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateAsync_MaxBelowMin_ThrowsBadRequest()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).CreateAsync(seller, new CreateProductRequest
+        {
+            Kind = ListingKind.Service, Name = "Asesoría", Category = "Educación", Price = 80m, PriceMax = 30m,
+        }));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeStatus_ServiceMarkedSold_ThrowsBadRequest()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(seller, new CreateProductRequest
+            {
+                Kind = ListingKind.Service, Name = "Clases", Category = "Música", Price = 15m,
+            });
+
+        // Un servicio no se agota: lo que corresponde es ocultarlo.
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(ctx2).ChangeStatusAsync(id, ProductStatusAction.Sold, seller, canModerate: false));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeStatus_ServiceHidden_IsAllowed()
+    {
+        var seller = await AddUserAsync("s@ex.com", enrolled: true);
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(seller, new CreateProductRequest
+            {
+                Kind = ListingKind.Service, Name = "Clases", Category = "Música", Price = 15m,
+            });
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ChangeStatusAsync(id, ProductStatusAction.Hide, seller, canModerate: false);
+
+        await using var check = _db.CreateContext();
+        Assert.Equal(ProductStatus.Hidden, (await check.Products.SingleAsync(x => x.Id == id)).Status);
+    }
+
     private async Task<Guid> AddUserAsync(string email, bool enrolled, Action<User>? cfg = null)
     {
         await using var ctx = _db.CreateContext();

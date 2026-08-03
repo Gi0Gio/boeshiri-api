@@ -54,7 +54,7 @@ public class MarketplaceService(
             throw AppException.NotFound("El producto no está disponible.");
 
         return new ProductDetailDto(
-            p.Id, p.Kind, p.Name, p.Category, p.Price, p.Description, p.DeliveryLocation, p.Status,
+            p.Id, p.Kind, p.Name, p.Category, p.Price, p.PriceMax, p.Description, p.DeliveryLocation, p.Status,
             p.SellerId, p.Seller.FullName, Contact(p.Seller),
             p.Images.OrderBy(i => i.Order).Select(i => i.Url).ToList());
     }
@@ -86,6 +86,8 @@ public class MarketplaceService(
         if ((request.Images?.Count ?? 0) > MaxImages)
             throw AppException.BadRequest($"Máximo {MaxImages} imágenes por producto.");
 
+        ValidatePriceRange(request.Kind, request.Price, request.PriceMax);
+
         var product = new Product
         {
             SellerId = userId,
@@ -93,6 +95,7 @@ public class MarketplaceService(
             Name = request.Name.Trim(),
             Category = request.Category.Trim(),
             Price = request.Price,
+            PriceMax = request.PriceMax,
             Description = request.Description,
             DeliveryLocation = request.DeliveryLocation
         };
@@ -111,9 +114,13 @@ public class MarketplaceService(
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && x.SellerId == userId, ct)
             ?? throw AppException.NotFound("El producto no existe o no es tuyo.");
 
+        // El tipo no cambia al editar, así que el rango se valida contra el que tiene.
+        ValidatePriceRange(p.Kind, request.Price, request.PriceMax);
+
         p.Name = request.Name.Trim();
         p.Category = request.Category.Trim();
         p.Price = request.Price;
+        p.PriceMax = request.PriceMax;
         p.Description = request.Description;
         p.DeliveryLocation = request.DeliveryLocation;
         p.EditedAt = DateTime.UtcNow;
@@ -127,6 +134,10 @@ public class MarketplaceService(
             ?? throw AppException.NotFound("El producto no está disponible.");
 
         var isOwner = p.SellerId == userId;
+
+        // Un servicio no se agota: sin disponibilidad lo que corresponde es ocultarlo.
+        if (action == ProductStatusAction.Sold && p.Kind == ListingKind.Service)
+            throw AppException.BadRequest("Un servicio no se marca como vendido. Ocúltalo mientras no tengas disponibilidad.");
 
         // Mostrar / marcar vendido: solo el dueño. Ocultar / eliminar: dueño o moderador (RF-MKT-08).
         var allowed = action switch
@@ -165,6 +176,21 @@ public class MarketplaceService(
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+    /// <summary>
+    /// El rango de precios existe solo para servicios: su costo depende del alcance
+    /// del trabajo. Un bien físico tiene un precio y punto.
+    /// </summary>
+    private static void ValidatePriceRange(ListingKind kind, decimal price, decimal? priceMax)
+    {
+        if (priceMax is null) return;
+
+        if (kind != ListingKind.Service)
+            throw AppException.BadRequest("El rango de precios solo aplica a los servicios.");
+
+        if (priceMax < price)
+            throw AppException.BadRequest("El precio máximo no puede ser menor que el mínimo.");
+    }
+
     private static SellerContactDto Contact(User seller) => new(
         seller.ShowEmail ? seller.Email : null,
         seller.ShowPhone ? seller.Phone : null,
@@ -174,6 +200,6 @@ public class MarketplaceService(
             .ToList());
 
     private static readonly Expression<Func<Product, ProductSummaryDto>> ToSummary = p => new ProductSummaryDto(
-        p.Id, p.Kind, p.Name, p.Category, p.Price, p.SellerId, p.Seller.FullName, p.Status,
+        p.Id, p.Kind, p.Name, p.Category, p.Price, p.PriceMax, p.SellerId, p.Seller.FullName, p.Status,
         p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault());
 }

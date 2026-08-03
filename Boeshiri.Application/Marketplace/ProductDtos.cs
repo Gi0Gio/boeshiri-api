@@ -17,6 +17,12 @@ public record CreateProductRequest
     [Range(0, 1000000)]
     public decimal Price { get; init; }
 
+    /// <summary>
+    /// Máximo del rango, solo para servicios. Null = precio fijo.
+    /// </summary>
+    [Range(0, 1000000)]
+    public decimal? PriceMax { get; init; }
+
     [MaxLength(4000)]
     public string? Description { get; init; }
 
@@ -36,6 +42,12 @@ public record UpdateProductRequest
 
     [Range(0, 1000000)]
     public decimal Price { get; init; }
+
+    /// <summary>
+    /// Máximo del rango, solo para servicios. Null = precio fijo.
+    /// </summary>
+    [Range(0, 1000000)]
+    public decimal? PriceMax { get; init; }
 
     [MaxLength(4000)]
     public string? Description { get; init; }
@@ -73,6 +85,7 @@ public record ProductSummaryDto(
     string Name,
     string Category,
     decimal Price,
+    decimal? PriceMax,
     Guid SellerId,
     string SellerName,
     ProductStatus Status,
@@ -84,6 +97,7 @@ public record ProductDetailDto(
     string Name,
     string Category,
     decimal Price,
+    decimal? PriceMax,
     string? Description,
     string? DeliveryLocation,
     ProductStatus Status,
