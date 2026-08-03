@@ -27,6 +27,19 @@ public class NotificationService(BoeshiriDbContext db) : INotificationService
     public Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default) =>
         db.Notifications.CountAsync(n => n.UserId == userId && !n.Read, ct);
 
+    public async Task<int> MarkAllReadAsync(Guid userId, CancellationToken ct = default)
+    {
+        // Filtra por usuario además de por no-leídas: sin eso, una consulta mal
+        // escrita podría marcar avisos ajenos.
+        var pendientes = await db.Notifications
+            .Where(n => n.UserId == userId && !n.Read)
+            .ToListAsync(ct);
+
+        foreach (var n in pendientes) n.Read = true;
+        await db.SaveChangesAsync(ct);
+        return pendientes.Count;
+    }
+
     public async Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
     {
         var notification = await db.Notifications

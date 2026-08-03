@@ -17,4 +17,7 @@ public interface INotificationService
     Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default);
 
     Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default);
+
+    /// <summary>Marca todas las propias como leídas. Devuelve cuántas cambiaron.</summary>
+    Task<int> MarkAllReadAsync(Guid userId, CancellationToken ct = default);
 }

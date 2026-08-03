@@ -26,6 +26,11 @@ public class NotificationsController(INotificationService notifications) : Contr
     public async Task<ActionResult<object>> UnreadCount(CancellationToken ct)
         => Ok(new { count = await notifications.UnreadCountAsync(CurrentUserId, ct) });
 
+    /// <summary>Marca todas las propias como leídas.</summary>
+    [HttpPost("leer-todas")]
+    public async Task<ActionResult> MarkAllRead(CancellationToken ct)
+        => Ok(new { total = await notifications.MarkAllReadAsync(CurrentUserId, ct) });
+
     /// <summary>Marca una notificación propia como leída.</summary>
     [HttpPost("{id:guid}/leer")]
     public async Task<IActionResult> MarkRead(Guid id, CancellationToken ct)
