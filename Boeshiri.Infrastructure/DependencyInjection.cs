@@ -74,6 +74,7 @@ public static class DependencyInjection
         // Valida y normaliza lo que se sube (WebP, límites, lista blanca) antes de
         // que llegue al bucket. Se registra siempre, aunque R2 esté deshabilitado.
         services.AddSingleton<IUploadProcessor, UploadProcessor>();
+        services.AddScoped<IFileManagerService, FileManagerService>();
 
         // Tarjetas para compartir en redes. Lleva HttpClient porque descarga la
         // imagen del anuncio o la publicación para componerla dentro.

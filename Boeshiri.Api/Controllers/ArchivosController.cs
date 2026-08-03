@@ -12,7 +12,7 @@ namespace Boeshiri.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("archivos")]
-public class ArchivosController(IFileStorage storage, IUploadProcessor processor) : ControllerBase
+public class ArchivosController(IFileStorage storage, IUploadProcessor processor, IFileManagerService manager) : ControllerBase
 {
     // Tope de transporte: corta la petición antes de leerla entera. Los límites
     // reales por tipo (5 MB imagen, 10 MB PDF) los aplica el IUploadProcessor.
@@ -36,16 +36,21 @@ public class ArchivosController(IFileStorage storage, IUploadProcessor processor
         return Ok(new { url });
     }
 
-    /// <summary>Gestor de archivos: lista objetos del bucket. Solo super admin.</summary>
+    /// <summary>
+    /// Gestor de archivos: lista los objetos con su dueño y si es seguro borrarlos.
+    /// </summary>
     [HasPermission("archivos.gestionar")]
     [HttpGet("gestor")]
     public async Task<ActionResult> List([FromQuery] string? prefix, CancellationToken ct)
     {
-        var objetos = await storage.ListAsync(string.IsNullOrWhiteSpace(prefix) ? null : prefix, ct);
+        var objetos = await manager.ListAsync(string.IsNullOrWhiteSpace(prefix) ? null : prefix, ct);
         return Ok(new { enabled = storage.Enabled, objects = objetos });
     }
 
-    /// <summary>Gestor de archivos: elimina un objeto del bucket por su key. Solo super admin.</summary>
+    /// <summary>
+    /// Borra un archivo. Solo si está en la papelera o huérfano: los que están en
+    /// uso se rechazan con 409 para no dejar enlaces rotos en el sitio.
+    /// </summary>
     [HasPermission("archivos.gestionar")]
     [HttpDelete("gestor")]
     public async Task<IActionResult> DeleteObject([FromQuery] string key, CancellationToken ct)
@@ -53,7 +58,16 @@ public class ArchivosController(IFileStorage storage, IUploadProcessor processor
         if (string.IsNullOrWhiteSpace(key))
             return BadRequest(new { detail = "Falta la key del objeto." });
 
-        await storage.DeleteByKeyAsync(key, ct);
+        await manager.DeleteAsync(key, User.GetUserId(), ct);
         return NoContent();
+    }
+
+    /// <summary>Vacía la papelera: los archivos de entidades ya eliminadas.</summary>
+    [HasPermission("archivos.gestionar")]
+    [HttpPost("gestor/vaciar-papelera")]
+    public async Task<ActionResult> EmptyTrash(CancellationToken ct)
+    {
+        var total = await manager.EmptyTrashAsync(User.GetUserId(), ct);
+        return Ok(new { total, mensaje = total == 0 ? "La papelera ya estaba vacía." : $"Se liberaron {total} archivos." });
     }
 }

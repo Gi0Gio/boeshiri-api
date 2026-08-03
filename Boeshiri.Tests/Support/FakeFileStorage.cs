@@ -9,6 +9,8 @@ namespace Boeshiri.Tests.Support;
 public sealed class FakeFileStorage : IFileStorage
 {
     public List<string> Deleted { get; } = [];
+    /// <summary>Contenido simulado del bucket, para los tests del gestor.</summary>
+    public List<StoredObject> Objects { get; } = [];
     public bool Enabled => true;
 
     public Task<string> UploadAsync(Stream content, string fileName, string? contentType, string folder, CancellationToken ct = default)
@@ -21,7 +23,8 @@ public sealed class FakeFileStorage : IFileStorage
     }
 
     public Task<IReadOnlyList<StoredObject>> ListAsync(string? prefix, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<StoredObject>>([]);
+        => Task.FromResult<IReadOnlyList<StoredObject>>(
+            string.IsNullOrEmpty(prefix) ? Objects : Objects.Where(o => o.Key.StartsWith(prefix)).ToList());
 
     public Task DeleteByKeyAsync(string key, CancellationToken ct = default)
     {
