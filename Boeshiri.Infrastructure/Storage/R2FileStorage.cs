@@ -104,9 +104,12 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
         {
             await _client.DeleteObjectAsync(new DeleteObjectRequest { BucketName = _o.Bucket, Key = key }, ct);
         }
-        catch (AmazonS3Exception)
+        catch (AmazonS3Exception ex)
         {
-            // best-effort: no interrumpir el flujo si el borrado remoto falla
+            // Best-effort para no interrumpir el flujo, pero NO en silencio: si las
+            // credenciales caducan, cada borrado falla y los huérfanos se acumulan
+            // sin que nadie se entere hasta ver la factura.
+            _logger.LogWarning(ex, "No se pudo borrar {Key} de R2 (bucket {Bucket})", key, _o.Bucket);
         }
     }
 

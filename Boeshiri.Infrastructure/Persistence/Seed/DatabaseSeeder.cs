@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Boeshiri.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Semilla idempotente de los datos de referencia del RBAC: los 23 permisos del
+/// Semilla idempotente de los datos de referencia del RBAC: los 24 permisos del
 /// catálogo (+ comodín "*"), los 6 roles de sistema y su mapeo rol→permisos
 /// (Catálogo de Permisos §1 y §2). Seguro de ejecutar en cada arranque.
 /// </summary>
@@ -37,6 +37,10 @@ public static class DatabaseSeeder
         ["junta.espacio"] = "Acceso al espacio privado de la Junta",
         ["roles.gestionar"] = "Crear/editar roles y permisos; asignar roles",
         ["auditoria.ver"] = "Ver el historial de auditoría",
+        // Fuera del catálogo original (§1): se añadió con el gestor de archivos.
+        // No se asigna a ningún rol semilla —solo lo cubre el comodín— pero existe
+        // como clave para poder concederlo a un rol nuevo sin tocar código.
+        ["archivos.gestionar"] = "Ver y limpiar los archivos del almacenamiento",
         ["*"] = "Comodín: concede todos los permisos (Super Administrador)"
     };
 

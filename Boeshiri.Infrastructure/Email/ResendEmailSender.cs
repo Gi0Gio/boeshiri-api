@@ -36,6 +36,12 @@ public class ResendEmailSender(
             var resp = await resend.EmailSendAsync(message, ct);
             logger.LogInformation("Correo enviado a {To} (Resend id {Id}): {Subject}", to, resp.Content, subject);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // El cliente se fue: no es un fallo de envío y no debe volcar el cuerpo
+            // del correo al log como si lo fuera.
+            throw;
+        }
         catch (Exception ex)
         {
             // Se vuelca el cuerpo en el log a propósito: mientras no haya un dominio
