@@ -25,6 +25,7 @@ using Boeshiri.Infrastructure.Notifications;
 using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Profiles;
 using Boeshiri.Infrastructure.Publications;
+using Boeshiri.Infrastructure.Sharing;
 using Boeshiri.Infrastructure.Storage;
 using Boeshiri.Infrastructure.Transparency;
 using Microsoft.AspNetCore.Identity;
@@ -73,6 +74,10 @@ public static class DependencyInjection
         // Valida y normaliza lo que se sube (WebP, límites, lista blanca) antes de
         // que llegue al bucket. Se registra siempre, aunque R2 esté deshabilitado.
         services.AddSingleton<IUploadProcessor, UploadProcessor>();
+
+        // Tarjetas para compartir en redes. Lleva HttpClient porque descarga la
+        // imagen del anuncio o la publicación para componerla dentro.
+        services.AddHttpClient<IShareCardRenderer, ShareCardRenderer>();
 
         // ── Autenticación / correo ───────────────────────────────
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
