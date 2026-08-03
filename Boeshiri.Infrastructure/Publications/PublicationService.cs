@@ -81,7 +81,8 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
             p.Visibility, p.Status, p.CreatedAt, p.EditedAt,
             p.Images.OrderBy(i => i.Order).Select(i => i.Url).ToList(),
             p.Links.Select(l => new LinkInput(l.Title, l.Url)).ToList(),
-            p.Tags.Select(t => t.Name).ToList());
+            p.Tags.Select(t => t.Name).ToList(),
+            string.IsNullOrEmpty(p.Body) ? 0 : (p.Body.Length / CharsPerMinute) + 1);
     }
 
     public async Task<IReadOnlyList<PublicationDto>> ListMineAsync(Guid authorId, CancellationToken ct = default)
@@ -198,12 +199,23 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+    /// <summary>
+    /// Caracteres por minuto de lectura. Se estima por caracteres y no por palabras
+    /// porque el listado se proyecta a SQL, donde contar palabras no es traducible;
+    /// usar la misma fórmula en el detalle evita que la tarjeta y la ficha digan
+    /// cosas distintas. Sale de ~200 palabras/min y ~6,2 caracteres por palabra
+    /// en español, espacio incluido.
+    /// </summary>
+    private const int CharsPerMinute = 1240;
+
     /// <summary>Proyección a resumen. Es una Expression para que EF la traduzca a SQL.</summary>
     private static readonly Expression<Func<Publication, PublicationDto>> ToSummary = p => new PublicationDto(
         p.Id, p.Type, p.Title, p.AuthorId, p.Author.FullName, p.Visibility, p.Status,
         p.CreatedAt, p.EditedAt,
         p.Images.OrderBy(i => i.Order).Select(i => i.Url).FirstOrDefault(),
-        p.Tags.Select(t => t.Name).ToList());
+        p.Tags.Select(t => t.Name).ToList(),
+        // Sin cuerpo no hay nada que leer; con cuerpo, mínimo un minuto.
+        p.Body == null || p.Body.Length == 0 ? 0 : (p.Body.Length / CharsPerMinute) + 1);
 
     /// <summary>
     /// Límites de imágenes por tipo (§4.3). Compartido por el alta y la edición:

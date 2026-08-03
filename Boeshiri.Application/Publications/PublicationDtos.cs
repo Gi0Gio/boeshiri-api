@@ -81,7 +81,12 @@ public record PublicationDto(
     DateTime CreatedAt,
     DateTime? EditedAt,
     string? CoverImage,
-    IReadOnlyList<string> Tags);
+    IReadOnlyList<string> Tags,
+    /// <summary>
+    /// Minutos estimados de lectura. 0 cuando no hay texto que leer (foto, video,
+    /// música). Se calcula en el servidor porque el listado no lleva el cuerpo.
+    /// </summary>
+    int ReadingMinutes);
 
 /// <summary>Detalle completo de una publicación.</summary>
 public record PublicationDetailDto(
@@ -98,4 +103,5 @@ public record PublicationDetailDto(
     DateTime? EditedAt,
     IReadOnlyList<string> Images,
     IReadOnlyList<LinkInput> Links,
-    IReadOnlyList<string> Tags);
+    IReadOnlyList<string> Tags,
+    int ReadingMinutes);
