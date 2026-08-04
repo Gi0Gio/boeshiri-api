@@ -16,6 +16,7 @@ using Boeshiri.Application.Groups;
 using Boeshiri.Application.Marketplace;
 using Boeshiri.Application.Profiles;
 using Boeshiri.Application.Publications;
+using Boeshiri.Application.Sitemap;
 using Boeshiri.Application.Transparency;
 using Boeshiri.Infrastructure.Email;
 using Boeshiri.Infrastructure.Events;
@@ -26,6 +27,7 @@ using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Profiles;
 using Boeshiri.Infrastructure.Publications;
 using Boeshiri.Infrastructure.Sharing;
+using Boeshiri.Infrastructure.Sitemap;
 using Boeshiri.Infrastructure.Storage;
 using Boeshiri.Infrastructure.Transparency;
 using Microsoft.AspNetCore.Identity;
@@ -124,6 +126,9 @@ public static class DependencyInjection
 
         // ── Marketplace ──────────────────────────────────────────
         services.AddScoped<IMarketplaceService, MarketplaceService>();
+
+        // ── Sitemap (SEO) ────────────────────────────────────────
+        services.AddScoped<ISitemapService, SitemapService>();
 
         // ── Documentos / Biblioteca ──────────────────────────────
         services.AddScoped<IDocumentService, DocumentService>();

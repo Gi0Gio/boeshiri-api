@@ -70,6 +70,30 @@ public class CompartirController(
         return Imagen(bytes);
     }
 
+    // ── Marca ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tarjeta genérica del colectivo. Es la og:image por defecto del sitio: sin
+    /// ella, cuando alguien comparte la portada o cualquier página sin imagen
+    /// propia, el enlace sale como un rectángulo gris. Se compone con el mismo
+    /// renderizador que las demás para que la identidad no se bifurque.
+    /// </summary>
+    [HttpGet("marca/imagen.png")]
+    public async Task<IActionResult> MarcaImagen([FromQuery] string? formato, CancellationToken ct)
+    {
+        var bytes = await renderer.RenderAsync(
+            // El pie de la tarjeta ya firma "Boesh Irí · Colectivo cultural", así
+            // que el titular es para lo que la marca dice, no para repetirla.
+            new ShareCardContent(
+                Eyebrow: "Chiriquí, Panamá",
+                Title: "El puente vivo hacia nuestra historia",
+                Subtitle: "Arte, cultura y comunidad",
+                ImageUrl: null),
+            Formato(formato), ct);
+
+        return Imagen(bytes);
+    }
+
     // ── Publicaciones ────────────────────────────────────────────
 
     [HttpGet("publicacion/{id:guid}")]

@@ -118,29 +118,51 @@ public class ShareCardRenderer : IShareCardRenderer
             y += 56;
         }
 
-        var titulo = new RichTextOptions(fTitulo)
-        {
-            Origin = new PointF(margen, y),
-            WrappingLength = anchoUtil,
-            LineSpacing = 1.05f,
-        };
-        lienzo.Mutate(x => x.DrawText(titulo, content.Title.ToUpperInvariant(), Cream));
-
-        var lineas = TextMeasurer.MeasureSize(content.Title.ToUpperInvariant(), titulo);
-        y += lineas.Height + 34;
-
-        if (!string.IsNullOrWhiteSpace(content.Subtitle))
-        {
-            lienzo.Mutate(x => x.DrawText(
-                new RichTextOptions(fSub) { Origin = new PointF(margen, y), WrappingLength = anchoUtil },
-                content.Subtitle, Tea));
-        }
-
         // ── Membrete al pie ──────────────────────────────────────
         // En historia se sube: Instagram y WhatsApp superponen su barra de envío
         // sobre los últimos ~250 px, y el membrete quedaría tapado justo ahí.
         var margenPie = format == ShareFormat.Story ? 260f : margen;
         var yPie = alto - margenPie - 56;
+
+        // El pie está en una posición fija, así que el bloque de texto tiene un
+        // techo. Se calcula ANTES de dibujar el titular: los nombres largos son
+        // lo normal ("Taller de serigrafía para principiantes"), y dejar que el
+        // texto fluya hacia abajo lo estampaba encima del membrete.
+        var techoTexto = yPie - 26 - 32;
+
+        // MeasureSize devuelve la caja de los trazos, no la de la línea: se queda
+        // corta justo en el descendente. El aire se calcula sobre el cuerpo de la
+        // fuente para que el subtítulo no acabe pegado al titular.
+        var aire = fTitulo.Size * 0.5f;
+
+        var subtitulo = content.Subtitle?.Trim();
+        var altoSubtitulo = 0f;
+        if (!string.IsNullOrWhiteSpace(subtitulo))
+        {
+            altoSubtitulo = TextMeasurer.MeasureSize(
+                subtitulo, new RichTextOptions(fSub) { WrappingLength = anchoUtil }).Height + aire;
+        }
+
+        var (fAjustada, textoTitulo) = AjustarTitulo(
+            Display, content.Title.ToUpperInvariant(), fTitulo.Size, anchoUtil, techoTexto - y - altoSubtitulo);
+
+        var titulo = new RichTextOptions(fAjustada)
+        {
+            Origin = new PointF(margen, y),
+            WrappingLength = anchoUtil,
+            LineSpacing = 1.05f,
+        };
+        lienzo.Mutate(x => x.DrawText(titulo, textoTitulo, Cream));
+
+        y += TextMeasurer.MeasureSize(textoTitulo, titulo).Height + aire;
+
+        if (!string.IsNullOrWhiteSpace(subtitulo))
+        {
+            lienzo.Mutate(x => x.DrawText(
+                new RichTextOptions(fSub) { Origin = new PointF(margen, y), WrappingLength = anchoUtil },
+                subtitulo, Tea));
+        }
+
         lienzo.Mutate(x => x.Fill(Caribbean, new RectangleF(margen, yPie - 26, 64, 5)));
         lienzo.Mutate(x => x.DrawText(EspaciarLetras("BOESH IRÍ"), fMarca, Cream, new PointF(margen, yPie)));
         lienzo.Mutate(x => x.DrawText(
@@ -149,6 +171,39 @@ public class ShareCardRenderer : IShareCardRenderer
         using var salida = new MemoryStream();
         await lienzo.SaveAsync(salida, new PngEncoder(), ct);
         return salida.ToArray();
+    }
+
+    /// <summary>
+    /// Encoge el titular hasta que quepa en el hueco disponible, y si ni al
+    /// mínimo entra, lo recorta por palabras. Se prefiere un titular más pequeño
+    /// —o cortado— a uno que se salga: la tarjeta es lo primero que ve alguien
+    /// al recibir el enlace, y ahí no hay segunda oportunidad.
+    /// </summary>
+    private static (Font Fuente, string Texto) AjustarTitulo(
+        FontFamily familia, string texto, float tamañoBase, float anchoUtil, float altoDisponible)
+    {
+        var minimo = tamañoBase * 0.6f;
+
+        for (var tamaño = tamañoBase; tamaño >= minimo; tamaño -= 4)
+        {
+            var fuente = familia.CreateFont(tamaño, FontStyle.Bold);
+            var opciones = new RichTextOptions(fuente) { WrappingLength = anchoUtil, LineSpacing = 1.05f };
+            if (TextMeasurer.MeasureSize(texto, opciones).Height <= altoDisponible)
+                return (fuente, texto);
+        }
+
+        var pequeña = familia.CreateFont(minimo, FontStyle.Bold);
+        var opcionesMin = new RichTextOptions(pequeña) { WrappingLength = anchoUtil, LineSpacing = 1.05f };
+        var palabras = texto.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        for (var n = palabras.Length - 1; n > 1; n--)
+        {
+            var recorte = string.Join(' ', palabras.Take(n)) + "…";
+            if (TextMeasurer.MeasureSize(recorte, opcionesMin).Height <= altoDisponible)
+                return (pequeña, recorte);
+        }
+
+        return (pequeña, texto);
     }
 
     /// <summary>
