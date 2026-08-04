@@ -151,8 +151,9 @@ public class AuthServiceTests : IDisposable
 
         Assert.False(string.IsNullOrWhiteSpace(result.Token));
         Assert.Contains("Miembro", result.Roles);
-        Assert.Equal(8, result.Permissions.Count);
+        Assert.Equal(9, result.Permissions.Count);
         Assert.Contains("perfil.editar", result.Permissions);
+        Assert.Contains("gritos.publicar", result.Permissions);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

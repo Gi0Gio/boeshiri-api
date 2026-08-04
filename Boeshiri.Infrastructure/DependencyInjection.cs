@@ -16,6 +16,7 @@ using Boeshiri.Application.Groups;
 using Boeshiri.Application.Marketplace;
 using Boeshiri.Application.Profiles;
 using Boeshiri.Application.Publications;
+using Boeshiri.Application.Shouts;
 using Boeshiri.Application.Sitemap;
 using Boeshiri.Application.Transparency;
 using Boeshiri.Infrastructure.Email;
@@ -27,6 +28,7 @@ using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Profiles;
 using Boeshiri.Infrastructure.Publications;
 using Boeshiri.Infrastructure.Sharing;
+using Boeshiri.Infrastructure.Shouts;
 using Boeshiri.Infrastructure.Sitemap;
 using Boeshiri.Infrastructure.Storage;
 using Boeshiri.Infrastructure.Transparency;
@@ -126,6 +128,9 @@ public static class DependencyInjection
 
         // ── Marketplace ──────────────────────────────────────────
         services.AddScoped<IMarketplaceService, MarketplaceService>();
+
+        // ── Gritos (llamados abiertos entre miembros) ────────────
+        services.AddScoped<IShoutService, ShoutService>();
 
         // ── Sitemap (SEO) ────────────────────────────────────────
         services.AddScoped<ISitemapService, SitemapService>();

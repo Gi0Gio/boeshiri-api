@@ -36,6 +36,8 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
     public DbSet<EventAttendee> EventAttendees => Set<EventAttendee>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<Shout> Shouts => Set<Shout>();
+    public DbSet<ShoutJoin> ShoutJoins => Set<ShoutJoin>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<FinancialMovement> FinancialMovements => Set<FinancialMovement>();
     public DbSet<TransparencyArticle> TransparencyArticles => Set<TransparencyArticle>();
@@ -300,6 +302,30 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.Property(x => x.Url).HasMaxLength(500).IsRequired();
             e.HasOne(x => x.Product).WithMany(p => p.Images).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Shout ────────────────────────────────────────────────
+        b.Entity<Shout>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(160).IsRequired();
+            e.Property(x => x.Detail).HasMaxLength(1000);
+            e.Property(x => x.Place).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Fee).HasPrecision(10, 2);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            // La consulta que manda es «abiertos que todavía no pasaron».
+            e.HasIndex(x => new { x.Status, x.HappensAt });
+            e.HasIndex(x => x.AuthorId);
+            e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── ShoutJoin ────────────────────────────────────────────
+        b.Entity<ShoutJoin>(e =>
+        {
+            // La clave compuesta es la que impide apuntarse dos veces.
+            e.HasKey(x => new { x.ShoutId, x.UserId });
+            e.HasOne(x => x.Shout).WithMany(s => s.Joins).HasForeignKey(x => x.ShoutId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── Document ─────────────────────────────────────────────

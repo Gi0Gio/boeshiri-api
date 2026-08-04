@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Boeshiri.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Semilla idempotente de los datos de referencia del RBAC: los 24 permisos del
+/// Semilla idempotente de los datos de referencia del RBAC: los 26 permisos del
 /// catálogo (+ comodín "*"), los 6 roles de sistema y su mapeo rol→permisos
 /// (Catálogo de Permisos §1 y §2). Seguro de ejecutar en cada arranque.
 /// </summary>
@@ -31,6 +31,8 @@ public static class DatabaseSeeder
         ["eventos.gestionar"] = "Crear/ocultar/eliminar eventos",
         ["publicaciones.moderar"] = "Ocultar/eliminar publicaciones ajenas",
         ["productos.moderar"] = "Ver/ocultar/eliminar productos ajenos",
+        ["gritos.publicar"] = "Echar gritos: llamados abiertos a otros miembros",
+        ["gritos.moderar"] = "Eliminar gritos ajenos",
         ["finanzas.ver"] = "Ver el balance general",
         ["finanzas.editar"] = "Modificar movimientos y descripciones",
         ["transparencia.gestionar"] = "Crear/editar/ocultar/eliminar artículos oficiales",
@@ -50,7 +52,7 @@ public static class DatabaseSeeder
         ("Miembro", "tea", [
             "perfil.editar", "publicaciones.crear", "publicaciones.gestionar_propias",
             "grupos.solicitar", "documentos.ver_comunidad", "documentos.subir_comunidad",
-            "marketplace.gestionar_propio", "eventos.ver_exclusivos"
+            "marketplace.gestionar_propio", "eventos.ver_exclusivos", "gritos.publicar"
         ]),
         ("Periodista", "terracotta", ["noticias.publicar"]),
         ("Recursos Humanos", "caribbean", ["postulantes.decidir"]),
@@ -58,7 +60,7 @@ public static class DatabaseSeeder
         ("Junta Directiva", "jungle", [
             "panel_admin.ver", "postulantes.decidir", "miembros.gestionar_estado",
             "comisiones.ver_todas", "eventos.gestionar", "publicaciones.moderar",
-            "productos.moderar", "noticias.publicar", "finanzas.ver",
+            "productos.moderar", "gritos.moderar", "noticias.publicar", "finanzas.ver",
             "transparencia.gestionar", "junta.espacio", "documentos.ver_admin"
         ]),
         ("Super Administrador", "candy", ["*"])
