@@ -19,6 +19,7 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
     public DbSet<SocialLink> SocialLinks => Set<SocialLink>();
     public DbSet<ProfileSkill> ProfileSkills => Set<ProfileSkill>();
     public DbSet<VerificationToken> VerificationTokens => Set<VerificationToken>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<Publication> Publications => Set<Publication>();
@@ -127,6 +128,16 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.HasKey(x => x.Id);
             e.Property(x => x.Token).HasMaxLength(128).IsRequired();
             e.HasIndex(x => x.Token).IsUnique();
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── RefreshToken ─────────────────────────────────────────
+        b.Entity<RefreshToken>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.UserId);
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 

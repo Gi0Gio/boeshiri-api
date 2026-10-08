@@ -18,8 +18,20 @@ public interface IAuthService
     /// </summary>
     Task ResendVerificationAsync(string email, CancellationToken ct = default);
 
-    /// <summary>Valida credenciales y emite un JWT con los permisos efectivos.</summary>
-    Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken ct = default);
+    /// <summary>
+    /// Valida credenciales y emite un JWT con los permisos efectivos, más el token
+    /// de renovación que mantiene la sesión abierta entre visitas.
+    /// </summary>
+    Task<SessionResult> LoginAsync(LoginRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Canjea un token de renovación por un JWT nuevo, con los permisos releídos de
+    /// la base. Rota el token; reusar uno ya rotado cierra todas las sesiones.
+    /// </summary>
+    Task<SessionResult> RefreshAsync(string refreshToken, CancellationToken ct = default);
+
+    /// <summary>Revoca el token de renovación. No falla si ya no existía.</summary>
+    Task LogoutAsync(string refreshToken, CancellationToken ct = default);
 
     /// <summary>Devuelve el usuario actual, su estado y sus roles/permisos.</summary>
     Task<MeResult> GetMeAsync(Guid userId, CancellationToken ct = default);

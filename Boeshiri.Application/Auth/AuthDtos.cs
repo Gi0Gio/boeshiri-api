@@ -56,6 +56,14 @@ public record AuthResult(
     IReadOnlyCollection<string> Roles,
     IReadOnlyCollection<string> Permissions);
 
+/// <summary>
+/// Sesión abierta o renovada. <see cref="Auth"/> va en el cuerpo de la respuesta;
+/// <see cref="RefreshToken"/> va a la cookie y nunca al JSON. Es null cuando la
+/// renovación no rotó el token (otra pestaña acababa de hacerlo) y la cookie que
+/// ya tiene el navegador sigue siendo la buena.
+/// </summary>
+public record SessionResult(AuthResult Auth, string? RefreshToken, DateTime RefreshExpiresAt);
+
 /// <summary>Estado de la sesión y de la solicitud (RF-PUB-16).</summary>
 public record MeResult(
     Guid Id,

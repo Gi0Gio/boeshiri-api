@@ -28,6 +28,7 @@ public class AuthServiceTests : IDisposable
             Audience = "test",
             AccessTokenMinutes = 60
         })),
+        Options.Create(new JwtOptions { RefreshTokenDays = 30 }),
         _email,
         Options.Create(new AppOptions { PublicBaseUrl = "http://test" }),
         NullLogger<AuthService>.Instance);
@@ -149,14 +150,153 @@ public class AuthServiceTests : IDisposable
         await using var ctx = _db.CreateContext();
         var result = await NewService(ctx).LoginAsync(new LoginRequest { Email = "m@ex.com", Password = "Secreta123" });
 
-        Assert.False(string.IsNullOrWhiteSpace(result.Token));
-        Assert.Contains("Miembro", result.Roles);
-        Assert.Equal(9, result.Permissions.Count);
-        Assert.Contains("perfil.editar", result.Permissions);
-        Assert.Contains("gritos.publicar", result.Permissions);
+        Assert.False(string.IsNullOrWhiteSpace(result.Auth.Token));
+        Assert.False(string.IsNullOrWhiteSpace(result.RefreshToken));
+        Assert.Contains("Miembro", result.Auth.Roles);
+        Assert.Equal(9, result.Auth.Permissions.Count);
+        Assert.Contains("perfil.editar", result.Auth.Permissions);
+        Assert.Contains("gritos.publicar", result.Auth.Permissions);
+    }
+
+    // ── Renovación de sesión ─────────────────────────────────────
+
+    [Fact]
+    public async Task RefreshAsync_ValidToken_RotatesAndIssuesNewJwt()
+    {
+        var login = await LoginActiveAsync("r@ex.com");
+
+        await using var ctx = _db.CreateContext();
+        var result = await NewService(ctx).RefreshAsync(login.RefreshToken!);
+
+        Assert.False(string.IsNullOrWhiteSpace(result.Auth.Token));
+        Assert.NotNull(result.RefreshToken);
+        Assert.NotEqual(login.RefreshToken, result.RefreshToken);
+
+        // Y el nuevo sirve para la siguiente renovación.
+        await using var ctx2 = _db.CreateContext();
+        await NewService(ctx2).RefreshAsync(result.RefreshToken!);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_RotatedTokenReusedAfterGrace_RevokesEverySession()
+    {
+        var login = await LoginActiveAsync("robo@ex.com");
+
+        string sustituto;
+        await using (var ctx = _db.CreateContext())
+            sustituto = (await NewService(ctx).RefreshAsync(login.RefreshToken!)).RefreshToken!;
+
+        // Se envejece la rotación para salir del margen de pestañas simultáneas.
+        await using (var ctx = _db.CreateContext())
+        {
+            var rotado = await ctx.RefreshTokens.SingleAsync(t => t.RevokedAt != null);
+            rotado.RevokedAt = DateTime.UtcNow.AddMinutes(-10);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using (var ctx = _db.CreateContext())
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).RefreshAsync(login.RefreshToken!));
+            Assert.Equal(401, ex.StatusCode);
+        }
+
+        // El sustituto también cae: no se sabe si lo tiene el usuario o el ladrón.
+        await using (var ctx = _db.CreateContext())
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).RefreshAsync(sustituto));
+            Assert.Equal(401, ex.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task RefreshAsync_RotatedTokenWithinGrace_ReturnsJwtWithoutNewCookie()
+    {
+        var login = await LoginActiveAsync("pestanas@ex.com");
+
+        string sustituto;
+        await using (var ctx = _db.CreateContext())
+            sustituto = (await NewService(ctx).RefreshAsync(login.RefreshToken!)).RefreshToken!;
+
+        // La segunda pestaña llega con la cookie vieja justo después.
+        await using (var ctx = _db.CreateContext())
+        {
+            var result = await NewService(ctx).RefreshAsync(login.RefreshToken!);
+            Assert.False(string.IsNullOrWhiteSpace(result.Auth.Token));
+            Assert.Null(result.RefreshToken);
+        }
+
+        // Y no se revocó nada: el sustituto sigue vivo.
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RefreshAsync(sustituto);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_RotatedTokenWithinGraceAfterLogout_ThrowsUnauthorized()
+    {
+        var login = await LoginActiveAsync("cerro@ex.com");
+
+        string sustituto;
+        await using (var ctx = _db.CreateContext())
+            sustituto = (await NewService(ctx).RefreshAsync(login.RefreshToken!)).RefreshToken!;
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).LogoutAsync(sustituto);
+
+        // La cookie anterior a la rotación, aún dentro del margen, no reabre la sesión.
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx2).RefreshAsync(login.RefreshToken!));
+        Assert.Equal(401, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_SuspendedUser_ThrowsUnauthorized()
+    {
+        var login = await LoginActiveAsync("susp@ex.com");
+        await MutateUserAsync("susp@ex.com", u => u.Status = MemberStatus.Suspended);
+
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).RefreshAsync(login.RefreshToken!));
+        Assert.Equal(401, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ExpiredToken_ThrowsUnauthorized()
+    {
+        var login = await LoginActiveAsync("viejo@ex.com");
+        await using (var ctx = _db.CreateContext())
+        {
+            var t = await ctx.RefreshTokens.SingleAsync();
+            t.ExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx2).RefreshAsync(login.RefreshToken!));
+        Assert.Equal(401, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task LogoutAsync_RevokesToken()
+    {
+        var login = await LoginActiveAsync("salir@ex.com");
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).LogoutAsync(login.RefreshToken!);
+
+        // Revocado por cierre de sesión (sin sustituto): reusarlo no tiene margen.
+        await using var ctx2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx2).RefreshAsync(login.RefreshToken!));
+        Assert.Equal(401, ex.StatusCode);
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+    private async Task<SessionResult> LoginActiveAsync(string email)
+    {
+        await RegisterVerifiedActiveAsync(email);
+        await using var ctx = _db.CreateContext();
+        return await NewService(ctx).LoginAsync(new LoginRequest { Email = email, Password = "Secreta123" });
+    }
+
     private async Task RegisterVerifiedActiveAsync(string email)
     {
         await using (var ctx = _db.CreateContext())

@@ -59,6 +59,7 @@ Variables de entorno del servicio (doble guion bajo = separador de sección):
 | `ConnectionStrings__Default` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}};SSL Mode=Require;Trust Server Certificate=true` | Referencia al servicio Postgres |
 | `Jwt__Key` | *(secreto, ≥32 bytes)* | |
 | `Jwt__Issuer` / `Jwt__Audience` | `boeshiri-api` / `boeshiri-web` | |
+| `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | `30` / `30` *(por defecto)* | El JWT dura poco; la cookie `boeshiri_sesion` lo renueva. El front llama a `/auth/login`, `/auth/renovar` y `/auth/salir` por el proxy de Netlify para que la cookie sea de su dominio |
 | `App__PublicBaseUrl` | URL del **frontend**, p. ej. `https://boeshiri.org` | Los enlaces de los correos apuntan aquí, **no** a la API |
 | `Cors__AllowedOrigins` | Orígenes del front separados por coma | Sin esto el navegador bloquea las llamadas |
 | `Resend__ApiKey` | *(secreto)* | Sin ella no sale ningún correo de verificación |
