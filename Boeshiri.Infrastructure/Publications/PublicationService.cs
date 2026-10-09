@@ -5,6 +5,7 @@ using Boeshiri.Application.Common;
 using Boeshiri.Application.Publications;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -52,7 +53,8 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
 
     public async Task<IReadOnlyList<PublicationDto>> ListPublicAsync(PublicationType? type, bool includeMembersOnly, CancellationToken ct = default)
     {
-        var query = db.Publications.Where(p => p.Status == ContentStatus.Published);
+        var query = db.Publications.Where(p => p.Status == ContentStatus.Published
+            && p.Author.Status != MemberStatus.Suspended && p.Author.Status != MemberStatus.Expelled);
         if (!includeMembersOnly)
             query = query.Where(p => p.Visibility == Visibility.Public);
         if (type is not null)
@@ -74,7 +76,7 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
             .FirstOrDefaultAsync(x => x.Id == id, ct);
 
         // Contenido inexistente, oculto o eliminado: mensaje genérico (RF-PUB-20).
-        if (p is null || p.Status != ContentStatus.Published)
+        if (p is null || p.Status != ContentStatus.Published || !Visibilidad.AutorVisible(p.Author.Status))
             throw AppException.NotFound("La publicación no está disponible.");
 
         // Exclusivo para miembros: el visitante debe iniciar sesión (RF-PUB-19).
@@ -186,19 +188,35 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
             ?? throw AppException.NotFound("La publicación no está disponible.");
 
         var isOwner = p.AuthorId == userId;
-
-        // Mostrar solo lo puede hacer el autor; ocultar/eliminar, autor o moderador.
-        var allowed = action == StatusAction.Show ? isOwner : isOwner || canModerate;
-        if (!allowed)
+        if (!isOwner && !canModerate)
             throw AppException.Forbidden("No tienes permiso para cambiar el estado de esta publicación.");
 
-        p.Status = action switch
+        // Eliminar es definitivo (la interfaz lo avisa: «no se puede deshacer»):
+        // antes un «mostrar» la resucitaba, incluso si la había eliminado un moderador.
+        if (p.Status == ContentStatus.Deleted)
+            throw AppException.Conflict("La publicación fue eliminada y no se puede recuperar.");
+
+        if (action == StatusAction.Show && p.ModeratedAt is not null && !canModerate)
+            throw AppException.Forbidden("La moderación ocultó esta publicación. Escribe a la Junta si crees que fue un error.");
+
+        // Quien actúa como moderador sobre contenido ajeno deja la marca; el autor
+        // ocultando lo suyo no.
+        var comoModerador = !isOwner && canModerate;
+        switch (action)
         {
-            StatusAction.Hide => ContentStatus.Hidden,
-            StatusAction.Show => ContentStatus.Published,
-            StatusAction.Delete => ContentStatus.Deleted,
-            _ => p.Status
-        };
+            case StatusAction.Hide:
+                p.Status = ContentStatus.Hidden;
+                if (comoModerador) p.ModeratedAt = DateTime.UtcNow;
+                break;
+            case StatusAction.Show:
+                p.Status = ContentStatus.Published;
+                p.ModeratedAt = null;
+                break;
+            case StatusAction.Delete:
+                p.Status = ContentStatus.Deleted;
+                if (comoModerador) p.ModeratedAt = DateTime.UtcNow;
+                break;
+        }
 
         // Auditar solo la moderación de contenido ajeno (RF-ADM-07).
         if (canModerate && !isOwner)

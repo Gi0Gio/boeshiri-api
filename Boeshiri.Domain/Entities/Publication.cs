@@ -29,6 +29,13 @@ public class Publication
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? EditedAt { get; set; }
 
+    /// <summary>
+    /// Cuándo la ocultó la moderación (no el autor). Mientras tenga valor, el autor
+    /// no puede volver a mostrarla: antes bastaba con pulsar «mostrar» para deshacer
+    /// lo que había decidido un moderador.
+    /// </summary>
+    public DateTime? ModeratedAt { get; set; }
+
     public ICollection<PublicationImage> Images { get; set; } = new List<PublicationImage>();
     public ICollection<PublicationLink> Links { get; set; } = new List<PublicationLink>();
     public ICollection<Tag> Tags { get; set; } = new List<Tag>();

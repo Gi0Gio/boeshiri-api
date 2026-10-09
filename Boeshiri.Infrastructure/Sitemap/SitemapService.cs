@@ -21,7 +21,8 @@ public class SitemapService(BoeshiriDbContext db, IOptions<AppOptions> appOption
         var entradas = new List<SitemapEntry>();
 
         var publicaciones = await db.Publications
-            .Where(p => p.Visibility == Visibility.Public && p.Status == ContentStatus.Published)
+            .Where(p => p.Visibility == Visibility.Public && p.Status == ContentStatus.Published
+                && p.Author.Status != MemberStatus.Suspended && p.Author.Status != MemberStatus.Expelled)
             .Select(p => new { p.Id, Fecha = p.EditedAt ?? p.CreatedAt })
             .ToListAsync(ct);
         entradas.AddRange(publicaciones.Select(p => new SitemapEntry($"{_site}/publicaciones/{p.Id}", p.Fecha, "monthly")));
@@ -33,7 +34,8 @@ public class SitemapService(BoeshiriDbContext db, IOptions<AppOptions> appOption
         entradas.AddRange(eventos.Select(e => new SitemapEntry($"{_site}/eventos/{e.Id}", e.CreatedAt, "weekly")));
 
         var anuncios = await db.Products
-            .Where(p => p.Status == ProductStatus.Published)
+            .Where(p => p.Status == ProductStatus.Published
+                && p.Seller.Status != MemberStatus.Suspended && p.Seller.Status != MemberStatus.Expelled)
             .Select(p => new { p.Id, Fecha = p.EditedAt ?? p.CreatedAt })
             .ToListAsync(ct);
         entradas.AddRange(anuncios.Select(p => new SitemapEntry($"{_site}/marketplace/{p.Id}", p.Fecha, "weekly")));

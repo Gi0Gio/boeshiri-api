@@ -32,7 +32,8 @@ public class ShoutService(
         var now = DateTime.UtcNow;
 
         var rows = await db.Shouts
-            .Where(s => s.Status == ShoutStatus.Open && s.HappensAt > now)
+            .Where(s => s.Status == ShoutStatus.Open && s.HappensAt > now
+                && s.Author.Status != MemberStatus.Suspended && s.Author.Status != MemberStatus.Expelled)
             .OrderBy(s => s.HappensAt)
             .Select(s => new Row(
                 s.Id, s.Title, s.Place, s.HappensAt, s.Slots, s.Joins.Count, s.Fee,
@@ -87,7 +88,8 @@ public class ShoutService(
     public async Task<int> CountOpenAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
-        return await db.Shouts.CountAsync(s => s.Status == ShoutStatus.Open && s.HappensAt > now, ct);
+        return await db.Shouts.CountAsync(s => s.Status == ShoutStatus.Open && s.HappensAt > now
+            && s.Author.Status != MemberStatus.Suspended && s.Author.Status != MemberStatus.Expelled, ct);
     }
 
     // ── Escritura ────────────────────────────────────────────────

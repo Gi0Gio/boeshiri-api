@@ -6,6 +6,7 @@ using Boeshiri.Application.Marketplace;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
 using Boeshiri.Infrastructure.Auth;
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +34,8 @@ public class MarketplaceService(
 
     public async Task<IReadOnlyList<ProductSummaryDto>> ListPublicAsync(string? name, string? category, Guid? sellerId, CancellationToken ct = default)
     {
-        var query = db.Products.Where(p => p.Status == ProductStatus.Published);
+        var query = db.Products.Where(p => p.Status == ProductStatus.Published
+            && p.Seller.Status != MemberStatus.Suspended && p.Seller.Status != MemberStatus.Expelled);
 
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -58,7 +60,7 @@ public class MarketplaceService(
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, ct);
 
-        if (p is null || p.Status is ProductStatus.Hidden or ProductStatus.Deleted)
+        if (p is null || p.Status is ProductStatus.Hidden or ProductStatus.Deleted || !Visibilidad.AutorVisible(p.Seller.Status))
             throw AppException.NotFound("El producto no está disponible.");
 
         return new ProductDetailDto(
@@ -180,23 +182,43 @@ public class MarketplaceService(
         if (action == ProductStatusAction.Sold && p.Kind == ListingKind.Service)
             throw AppException.BadRequest("Un servicio no se marca como vendido. Ocúltalo mientras no tengas disponibilidad.");
 
-        // Mostrar / marcar vendido: solo el dueño. Ocultar / eliminar: dueño o moderador (RF-MKT-08).
+        // Marcar vendido: solo el dueño. Mostrar: el dueño, o un moderador que
+        // revierte su propia ocultación. Ocultar / eliminar: dueño o moderador (RF-MKT-08).
         var allowed = action switch
         {
-            ProductStatusAction.Show or ProductStatusAction.Sold => isOwner,
+            ProductStatusAction.Sold => isOwner,
             _ => isOwner || canModerate
         };
         if (!allowed)
             throw AppException.Forbidden("No tienes permiso para cambiar el estado de este producto.");
 
-        p.Status = action switch
+        if (p.Status == ProductStatus.Deleted)
+            throw AppException.Conflict("El anuncio fue eliminado y no se puede recuperar.");
+
+        // Vendido también lo vuelve visible en su ficha: con la moderación encima,
+        // ni mostrar ni marcar vendido le corresponden al dueño.
+        if (action is ProductStatusAction.Show or ProductStatusAction.Sold && p.ModeratedAt is not null && !canModerate)
+            throw AppException.Forbidden("La moderación ocultó este anuncio. Escribe a la Junta si crees que fue un error.");
+
+        var comoModerador = !isOwner && canModerate;
+        switch (action)
         {
-            ProductStatusAction.Hide => ProductStatus.Hidden,
-            ProductStatusAction.Show => ProductStatus.Published,
-            ProductStatusAction.Sold => ProductStatus.Sold,
-            ProductStatusAction.Delete => ProductStatus.Deleted,
-            _ => p.Status
-        };
+            case ProductStatusAction.Hide:
+                p.Status = ProductStatus.Hidden;
+                if (comoModerador) p.ModeratedAt = DateTime.UtcNow;
+                break;
+            case ProductStatusAction.Show:
+                p.Status = ProductStatus.Published;
+                p.ModeratedAt = null;
+                break;
+            case ProductStatusAction.Sold:
+                p.Status = ProductStatus.Sold;
+                break;
+            case ProductStatusAction.Delete:
+                p.Status = ProductStatus.Deleted;
+                if (comoModerador) p.ModeratedAt = DateTime.UtcNow;
+                break;
+        }
 
         if (canModerate && !isOwner)
             audit.Log(userId, "producto.moderado", "Product", p.Id.ToString(), action.ToString());
