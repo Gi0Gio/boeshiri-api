@@ -11,11 +11,11 @@ namespace Boeshiri.Api.Controllers;
 /// notifica a todos los miembros (RF-TRA-02).
 /// </summary>
 [ApiController]
-[Authorize]
+[MiembroActivo]
 [Route("transparencia")]
 public class TransparenciaController(ITransparencyService transparency) : ControllerBase
 {
-    private bool CanManage => User.HasPermission("transparencia.gestionar");
+    private bool CanManage => User.HasPermission(Permisos.TransparenciaGestionar);
 
     /// <summary>Lista los artículos publicados (gestores ven también los ocultos).</summary>
     [HttpGet]
@@ -28,7 +28,7 @@ public class TransparenciaController(ITransparencyService transparency) : Contro
         => Ok(await transparency.GetDetailAsync(id, ct));
 
     /// <summary>Publica un artículo oficial y notifica a los miembros (RF-TRA-01/02).</summary>
-    [HasPermission("transparencia.gestionar")]
+    [HasPermission(Permisos.TransparenciaGestionar)]
     [HttpPost]
     public async Task<ActionResult> Create(CreateTransparencyRequest request, CancellationToken ct)
     {
@@ -37,7 +37,7 @@ public class TransparenciaController(ITransparencyService transparency) : Contro
     }
 
     /// <summary>Edita un artículo oficial.</summary>
-    [HasPermission("transparencia.gestionar")]
+    [HasPermission(Permisos.TransparenciaGestionar)]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateTransparencyRequest request, CancellationToken ct)
     {
@@ -46,7 +46,7 @@ public class TransparenciaController(ITransparencyService transparency) : Contro
     }
 
     /// <summary>Oculta / muestra / elimina un artículo oficial.</summary>
-    [HasPermission("transparencia.gestionar")]
+    [HasPermission(Permisos.TransparenciaGestionar)]
     [HttpPatch("{id:guid}/estado")]
     public async Task<IActionResult> ChangeStatus(Guid id, ChangeTransparencyStatusRequest request, CancellationToken ct)
     {

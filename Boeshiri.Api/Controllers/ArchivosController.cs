@@ -10,7 +10,7 @@ namespace Boeshiri.Api.Controllers;
 /// documentos). Devuelve la URL pública ya lista para guardar. Requiere sesión.
 /// </summary>
 [ApiController]
-[Authorize]
+[MiembroActivo]
 [Route("archivos")]
 public class ArchivosController(IFileStorage storage, IUploadProcessor processor, IFileManagerService manager) : ControllerBase
 {
@@ -39,7 +39,7 @@ public class ArchivosController(IFileStorage storage, IUploadProcessor processor
     /// <summary>
     /// Gestor de archivos: lista los objetos con su dueño y si es seguro borrarlos.
     /// </summary>
-    [HasPermission("archivos.gestionar")]
+    [HasPermission(Permisos.ArchivosGestionar)]
     [HttpGet("gestor")]
     public async Task<ActionResult> List([FromQuery] string? prefix, CancellationToken ct)
     {
@@ -51,7 +51,7 @@ public class ArchivosController(IFileStorage storage, IUploadProcessor processor
     /// Borra un archivo. Solo si está en la papelera o huérfano: los que están en
     /// uso se rechazan con 409 para no dejar enlaces rotos en el sitio.
     /// </summary>
-    [HasPermission("archivos.gestionar")]
+    [HasPermission(Permisos.ArchivosGestionar)]
     [HttpDelete("gestor")]
     public async Task<IActionResult> DeleteObject([FromQuery] string key, CancellationToken ct)
     {
@@ -63,7 +63,7 @@ public class ArchivosController(IFileStorage storage, IUploadProcessor processor
     }
 
     /// <summary>Vacía la papelera: los archivos de entidades ya eliminadas.</summary>
-    [HasPermission("archivos.gestionar")]
+    [HasPermission(Permisos.ArchivosGestionar)]
     [HttpPost("gestor/vaciar-papelera")]
     public async Task<ActionResult> EmptyTrash(CancellationToken ct)
     {

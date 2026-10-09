@@ -11,7 +11,7 @@ namespace Boeshiri.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("gritos")]
-[Authorize]
+[MiembroActivo]
 public class GritosController(IShoutService shouts) : ControllerBase
 {
     /// <summary>
@@ -39,7 +39,7 @@ public class GritosController(IShoutService shouts) : ControllerBase
         => Ok(await shouts.GetDetailAsync(id, User.GetUserId(), ct));
 
     /// <summary>Echa un grito.</summary>
-    [HasPermission("gritos.publicar")]
+    [HasPermission(Permisos.GritosPublicar)]
     [HttpPost]
     public async Task<ActionResult> Create(CreateShoutRequest request, CancellationToken ct)
     {
@@ -75,7 +75,7 @@ public class GritosController(IShoutService shouts) : ControllerBase
     [HttpPatch("{id:guid}/estado")]
     public async Task<IActionResult> ChangeStatus(Guid id, ChangeShoutStatusRequest request, CancellationToken ct)
     {
-        var canModerate = User.HasPermission("gritos.moderar");
+        var canModerate = User.HasPermission(Permisos.GritosModerar);
         await shouts.ChangeStatusAsync(id, request.Action, User.GetUserId(), canModerate, ct);
         return NoContent();
     }

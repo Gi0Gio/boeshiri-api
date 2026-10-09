@@ -12,20 +12,20 @@ namespace Boeshiri.Api.Controllers;
 /// de nivel Administración exigen <c>documentos.ver_admin</c> (RF-DOC-05).
 /// </summary>
 [ApiController]
-[Authorize]
+[MiembroActivo]
 [Route("documentos")]
 public class DocumentosController(IDocumentService documents, IFileStorage storage) : ControllerBase
 {
-    private bool CanViewAdmin => User.HasPermission("documentos.ver_admin");
+    private bool CanViewAdmin => User.HasPermission(Permisos.DocumentosVerAdmin);
 
     /// <summary>Lista documentos accesibles, filtrable por biblioteca y categoría (§8).</summary>
-    [HasPermission("documentos.ver_comunidad")]
+    [HasPermission(Permisos.DocumentosVerComunidad)]
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<DocumentDto>>> List([FromQuery] DocumentLibrary? biblioteca, [FromQuery] string? categoria, CancellationToken ct)
         => Ok(await documents.ListAsync(biblioteca, categoria, CanViewAdmin, ct));
 
     /// <summary>Metadata y URL de descarga de un documento accesible.</summary>
-    [HasPermission("documentos.ver_comunidad")]
+    [HasPermission(Permisos.DocumentosVerComunidad)]
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<DocumentDto>> Get(Guid id, CancellationToken ct)
         => Ok(await documents.GetAsync(id, CanViewAdmin, ct));
@@ -38,7 +38,7 @@ public class DocumentosController(IDocumentService documents, IFileStorage stora
     /// directo dejaba que cualquiera con el enlace bajara un documento de nivel
     /// Administración sin sesión. Aquí el permiso se comprueba en CADA descarga.
     /// </summary>
-    [HasPermission("documentos.ver_comunidad")]
+    [HasPermission(Permisos.DocumentosVerComunidad)]
     [HttpGet("{id:guid}/descargar")]
     public async Task<IActionResult> Download(Guid id, CancellationToken ct)
     {
@@ -57,7 +57,7 @@ public class DocumentosController(IDocumentService documents, IFileStorage stora
     {
         var id = await documents.CreateAsync(
             User.GetUserId(), request,
-            canUploadCommunity: User.HasPermission("documentos.subir_comunidad"),
+            canUploadCommunity: User.HasPermission(Permisos.DocumentosSubirComunidad),
             canManageAdmin: CanViewAdmin, ct);
         return CreatedAtAction(nameof(Get), new { id }, new { id });
     }

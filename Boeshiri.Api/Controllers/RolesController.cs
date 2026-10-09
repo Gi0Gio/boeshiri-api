@@ -10,7 +10,7 @@ namespace Boeshiri.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("admin")]
-[HasPermission("roles.gestionar")]
+[HasPermission(Permisos.RolesGestionar)]
 public class RolesController(IRoleService roles) : ControllerBase
 {
     /// <summary>Roles con sus permisos y conteo de usuarios.</summary>

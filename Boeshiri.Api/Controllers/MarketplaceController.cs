@@ -21,13 +21,13 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
         => Ok(await marketplace.ListPublicAsync(nombre, categoria, vendedor, ct));
 
     /// <summary>Productos propios (todos los estados).</summary>
-    [Authorize]
+    [MiembroActivo]
     [HttpGet("mios")]
     public async Task<ActionResult<IReadOnlyList<ProductSummaryDto>>> Mine(CancellationToken ct)
         => Ok(await marketplace.ListMineAsync(User.GetUserId(), ct));
 
     /// <summary>Cola de moderación: todos los productos vivos (RF-MKT-07/08).</summary>
-    [HasPermission("productos.moderar")]
+    [HasPermission(Permisos.ProductosModerar)]
     [HttpGet("moderacion")]
     public async Task<ActionResult<IReadOnlyList<ProductSummaryDto>>> Moderation(CancellationToken ct)
         => Ok(await marketplace.ListForModerationAsync(ct));
@@ -39,7 +39,7 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
         => Ok(await marketplace.GetDetailAsync(id, ct));
 
     /// <summary>Alta del miembro en el marketplace (RF-MKT-03).</summary>
-    [HasPermission("marketplace.gestionar_propio")]
+    [HasPermission(Permisos.MarketplaceGestionarPropio)]
     [HttpPost("alta")]
     public async Task<IActionResult> Enroll(CancellationToken ct)
     {
@@ -48,7 +48,7 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
     }
 
     /// <summary>Publica un producto (RF-MKT-04).</summary>
-    [HasPermission("marketplace.gestionar_propio")]
+    [HasPermission(Permisos.MarketplaceGestionarPropio)]
     [HttpPost]
     public async Task<ActionResult> Create(CreateProductRequest request, CancellationToken ct)
     {
@@ -57,7 +57,7 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
     }
 
     /// <summary>Edita un producto propio (RF-MKT-04).</summary>
-    [Authorize]
+    [HasPermission(Permisos.MarketplaceGestionarPropio)]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateProductRequest request, CancellationToken ct)
     {
@@ -66,11 +66,13 @@ public class MarketplaceController(IMarketplaceService marketplace) : Controller
     }
 
     /// <summary>Ocultar / mostrar / vender / eliminar (RF-MKT-05/08).</summary>
-    [Authorize]
+    [MiembroActivo]
     [HttpPatch("{id:guid}/estado")]
     public async Task<IActionResult> ChangeStatus(Guid id, ChangeProductStatusRequest request, CancellationToken ct)
     {
-        var canModerate = User.HasPermission("productos.moderar");
+        var canModerate = User.HasPermission(Permisos.ProductosModerar);
+        if (!canModerate && !User.HasPermission(Permisos.MarketplaceGestionarPropio))
+            return Forbid();
         await marketplace.ChangeStatusAsync(id, request.Action, User.GetUserId(), canModerate, ct);
         return NoContent();
     }

@@ -11,11 +11,11 @@ namespace Boeshiri.Api.Controllers;
 /// tenga <c>comisiones.ver_todas</c> (ADR-0005).
 /// </summary>
 [ApiController]
-[Authorize]
+[MiembroActivo]
 [Route("grupos")]
 public class GruposController(IGroupService groups) : ControllerBase
 {
-    private bool CanManageGlobally => User.HasPermission("comisiones.ver_todas");
+    private bool CanManageGlobally => User.HasPermission(Permisos.ComisionesVerTodas);
 
     /// <summary>Lista las comisiones.</summary>
     [HttpGet("comisiones")]
@@ -28,7 +28,7 @@ public class GruposController(IGroupService groups) : ControllerBase
         => Ok(await groups.GetCommissionDetailAsync(id, ct));
 
     /// <summary>Crea una comisión (RF-GRP-01). Requiere gestión global.</summary>
-    [HasPermission("comisiones.ver_todas")]
+    [HasPermission(Permisos.ComisionesVerTodas)]
     [HttpPost("comisiones")]
     public async Task<ActionResult> CreateCommission(CreateCommissionRequest request, CancellationToken ct)
     {
@@ -50,7 +50,7 @@ public class GruposController(IGroupService groups) : ControllerBase
         => Ok(await groups.ListMyGroupsAsync(User.GetUserId(), ct));
 
     /// <summary>Solicita ingreso a una comisión (RF-GRP-04).</summary>
-    [HasPermission("grupos.solicitar")]
+    [HasPermission(Permisos.GruposSolicitar)]
     [HttpPost("comisiones/{id:guid}/solicitar")]
     public async Task<IActionResult> RequestJoin(Guid id, CancellationToken ct)
     {

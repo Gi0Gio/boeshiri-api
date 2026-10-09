@@ -18,12 +18,11 @@ public class EventosController(IEventService events) : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<IReadOnlyList<EventSummaryDto>>> List([FromQuery] EventWhen cuando = EventWhen.All, CancellationToken ct = default)
     {
-        var authenticated = User.Identity?.IsAuthenticated ?? false;
-        return Ok(await events.ListPublicAsync(cuando, includeMembersOnly: authenticated, ct));
+        return Ok(await events.ListPublicAsync(cuando, includeMembersOnly: User.PuedeVerExclusivos(), ct));
     }
 
     /// <summary>Historial de eventos del usuario (RF-MEM-08).</summary>
-    [Authorize]
+    [MiembroActivo]
     [HttpGet("mi-historial")]
     public async Task<ActionResult<IReadOnlyList<MyEventDto>>> MyHistory(CancellationToken ct)
         => Ok(await events.ListMyHistoryAsync(User.GetUserId(), ct));
@@ -33,24 +32,23 @@ public class EventosController(IEventService events) : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<EventDetailDto>> Detail(Guid id, CancellationToken ct)
     {
-        var authenticated = User.Identity?.IsAuthenticated ?? false;
-        return Ok(await events.GetDetailAsync(id, authenticated, ct));
+        return Ok(await events.GetDetailAsync(id, User.PuedeVerExclusivos(), ct));
     }
 
     /// <summary>Listado de gestión: todos los eventos vivos, incl. ocultos (RF-EVT-02).</summary>
-    [HasPermission("eventos.gestionar")]
+    [HasPermission(Permisos.EventosGestionar)]
     [HttpGet("gestion")]
     public async Task<ActionResult<IReadOnlyList<EventSummaryDto>>> ListManage([FromQuery] EventWhen cuando = EventWhen.All, CancellationToken ct = default)
         => Ok(await events.ListManageAsync(cuando, ct));
 
     /// <summary>Detalle de gestión (aunque esté oculto), para editar.</summary>
-    [HasPermission("eventos.gestionar")]
+    [HasPermission(Permisos.EventosGestionar)]
     [HttpGet("gestion/{id:guid}")]
     public async Task<ActionResult<EventDetailDto>> ManageDetail(Guid id, CancellationToken ct)
         => Ok(await events.GetManageDetailAsync(id, ct));
 
     /// <summary>Crea un evento (RF-EVT-01).</summary>
-    [HasPermission("eventos.gestionar")]
+    [HasPermission(Permisos.EventosGestionar)]
     [HttpPost]
     public async Task<ActionResult> Create(CreateEventRequest request, CancellationToken ct)
     {
@@ -59,7 +57,7 @@ public class EventosController(IEventService events) : ControllerBase
     }
 
     /// <summary>Edita un evento.</summary>
-    [HasPermission("eventos.gestionar")]
+    [HasPermission(Permisos.EventosGestionar)]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateEventRequest request, CancellationToken ct)
     {
@@ -68,7 +66,7 @@ public class EventosController(IEventService events) : ControllerBase
     }
 
     /// <summary>Oculta / muestra / elimina un evento (RF-EVT-02).</summary>
-    [HasPermission("eventos.gestionar")]
+    [HasPermission(Permisos.EventosGestionar)]
     [HttpPatch("{id:guid}/estado")]
     public async Task<IActionResult> ChangeStatus(Guid id, ChangeEventStatusRequest request, CancellationToken ct)
     {
@@ -77,7 +75,7 @@ public class EventosController(IEventService events) : ControllerBase
     }
 
     /// <summary>Registra la asistencia del evento (RF-EVT-03).</summary>
-    [HasPermission("eventos.gestionar")]
+    [HasPermission(Permisos.EventosGestionar)]
     [HttpPost("{id:guid}/asistencia")]
     public async Task<IActionResult> RecordAttendance(Guid id, RecordAttendanceRequest request, CancellationToken ct)
     {

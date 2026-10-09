@@ -10,7 +10,7 @@ namespace Boeshiri.Api.Controllers;
 /// tablero; el líder crea/mueve; el responsable actualiza su tarea (RF-KAN-02/03).
 /// </summary>
 [ApiController]
-[Authorize]
+[MiembroActivo]
 public class TareasController(IKanbanService kanban) : ControllerBase
 {
     /// <summary>Tablero del grupo (columnas: Pendiente/EnProceso/EnRevisión/Completado).</summary>

@@ -19,6 +19,7 @@ public class MiPerfilController(IProfileService profiles) : ControllerBase
         => Ok(await profiles.GetMyProfileAsync(User.GetUserId(), ct));
 
     /// <summary>Actualiza nombre, descripción, disciplina, foto y etiquetas (RF-MEM-01).</summary>
+    [HasPermission(Permisos.PerfilEditar)]
     [HttpPut("perfil")]
     public async Task<IActionResult> Update(UpdateProfileRequest request, CancellationToken ct)
     {
@@ -27,6 +28,7 @@ public class MiPerfilController(IProfileService profiles) : ControllerBase
     }
 
     /// <summary>Actualiza las opciones de privacidad (RF-MEM-03).</summary>
+    [HasPermission(Permisos.PerfilEditar)]
     [HttpPut("perfil/privacidad")]
     public async Task<IActionResult> UpdatePrivacy(UpdatePrivacyRequest request, CancellationToken ct)
     {
@@ -35,6 +37,7 @@ public class MiPerfilController(IProfileService profiles) : ControllerBase
     }
 
     /// <summary>Reemplaza las redes del perfil (RF-MEM-04/05).</summary>
+    [HasPermission(Permisos.PerfilEditar)]
     [HttpPut("redes")]
     public async Task<IActionResult> UpdateSocialLinks(UpdateSocialLinksRequest request, CancellationToken ct)
     {

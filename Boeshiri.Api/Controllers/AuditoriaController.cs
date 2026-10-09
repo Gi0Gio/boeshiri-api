@@ -10,7 +10,7 @@ namespace Boeshiri.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("admin/auditoria")]
-[HasPermission("auditoria.ver")]
+[HasPermission(Permisos.AuditoriaVer)]
 public class AuditoriaController(IAuditLogger audit) : ControllerBase
 {
     /// <summary>Lista las acciones relevantes registradas (más recientes primero).</summary>

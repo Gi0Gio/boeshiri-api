@@ -84,7 +84,9 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(o => o.AddPolicy(MiembroActivoAttribute.Politica, p => p
+    .RequireAuthenticatedUser()
+    .RequireClaim(MiembroActivoAttribute.ClaimEstado, MiembroActivoAttribute.EstadoActivo)));
 
 // CORS: orígenes permitidos para el front (config "Cors:AllowedOrigins", separados
 // por coma). Por defecto, el dev server de Vite en local.
@@ -122,11 +124,30 @@ builder.Services.AddExceptionHandler<AppExceptionHandler>();
 var app = builder.Build();
 
 // Aplicar migraciones pendientes y sembrar datos de referencia (RBAC) al arrancar.
-using (var scope = app.Services.CreateScope())
+//
+// En desarrollo NO se migra una base remota salvo que se pida explícitamente
+// (Database:AllowRemoteMigrations=true): si la cadena local apunta a la base de
+// producción, arrancar en local una rama con una migración nueva la aplicaría en
+// producción antes de desplegar nada. Los tests desactivan la migración del todo
+// (Database:MigrateOnStartup=false) porque crean su propio esquema.
+if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<BoeshiriDbContext>();
-    await db.Database.MigrateAsync();
-    await DatabaseSeeder.SeedAsync(db);
+    var host = new Npgsql.NpgsqlConnectionStringBuilder(db.Database.GetConnectionString()).Host ?? "";
+    var esLocal = host is "localhost" or "127.0.0.1" or "::1" or "postgres" or "host.docker.internal";
+
+    if (app.Environment.IsDevelopment() && !esLocal && !app.Configuration.GetValue("Database:AllowRemoteMigrations", false))
+    {
+        app.Logger.LogWarning(
+            "Base remota ({Host}) en Development: no se aplican migraciones ni semilla al arrancar. " +
+            "Si de verdad quieres migrar esa base, define Database:AllowRemoteMigrations=true.", host);
+    }
+    else
+    {
+        await db.Database.MigrateAsync();
+        await DatabaseSeeder.SeedAsync(db);
+    }
 }
 
 // Deja constancia de qué emisor de correo quedó activo: sin esto, "no llegan los
@@ -162,3 +183,6 @@ app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "boeshiri-api" }));
 
 app.Run();
+
+/// <summary>Visible para los tests de integración (WebApplicationFactory).</summary>
+public partial class Program;

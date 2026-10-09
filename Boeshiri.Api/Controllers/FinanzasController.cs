@@ -14,13 +14,13 @@ namespace Boeshiri.Api.Controllers;
 public class FinanzasController(IFinanceService finance) : ControllerBase
 {
     /// <summary>Balance general y movimientos (RF-ADM-08).</summary>
-    [HasPermission("finanzas.ver")]
+    [HasPermission(Permisos.FinanzasVer)]
     [HttpGet]
     public async Task<ActionResult<FinanceSummaryDto>> Summary(CancellationToken ct)
         => Ok(await finance.GetSummaryAsync(ct));
 
     /// <summary>Registra un movimiento (solo Tesorero).</summary>
-    [HasPermission("finanzas.editar")]
+    [HasPermission(Permisos.FinanzasEditar)]
     [HttpPost("movimientos")]
     public async Task<ActionResult> Create(CreateMovementRequest request, CancellationToken ct)
     {
@@ -29,7 +29,7 @@ public class FinanzasController(IFinanceService finance) : ControllerBase
     }
 
     /// <summary>Edita un movimiento (solo Tesorero).</summary>
-    [HasPermission("finanzas.editar")]
+    [HasPermission(Permisos.FinanzasEditar)]
     [HttpPut("movimientos/{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateMovementRequest request, CancellationToken ct)
     {
@@ -38,7 +38,7 @@ public class FinanzasController(IFinanceService finance) : ControllerBase
     }
 
     /// <summary>Elimina un movimiento (solo Tesorero).</summary>
-    [HasPermission("finanzas.editar")]
+    [HasPermission(Permisos.FinanzasEditar)]
     [HttpDelete("movimientos/{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

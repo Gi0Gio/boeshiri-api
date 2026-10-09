@@ -10,7 +10,7 @@ namespace Boeshiri.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("admin/postulantes")]
-[HasPermission("postulantes.decidir")]
+[HasPermission(Permisos.PostulantesDecidir)]
 public class PostulantesController(IPostulantesService postulantes) : ControllerBase
 {
     /// <summary>Lista los postulantes pendientes de decisión.</summary>

@@ -10,7 +10,7 @@ namespace Boeshiri.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("admin/miembros")]
-[HasPermission("miembros.gestionar_estado")]
+[HasPermission(Permisos.MiembrosGestionarEstado)]
 public class MiembrosController(IMemberService members) : ControllerBase
 {
     /// <summary>Lista los miembros con su estado y roles.</summary>
