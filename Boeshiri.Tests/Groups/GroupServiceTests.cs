@@ -146,6 +146,56 @@ public class GroupServiceTests : IDisposable
         Assert.True(await check.GroupMemberships.AnyAsync(m => m.GroupId == teamId && m.UserId == leader && m.Role == GroupRole.Leader));
     }
 
+    // ── Equipos en el listado y detalle del equipo ───────────────
+    [Fact]
+    public async Task ListCommissionsAsync_IncludesTeamsWithLeaderId()
+    {
+        var commission = await AddCommissionAsync("Tecnología");
+        var coordinator = await AddUserAsync("coord@ex.com");
+        await AddMembershipAsync(commission, coordinator, GroupRole.Coordinator);
+        var leader = await AddUserAsync("lider@ex.com");
+        await AddMembershipAsync(commission, leader, GroupRole.Member);
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).CreateTeamAsync(commission, new CreateTeamRequest { Name = "Equipo A", LeaderUserId = leader }, coordinator, canManageGlobally: false);
+
+        await using var read = _db.CreateContext();
+        var c = Assert.Single(await NewService(read).ListCommissionsAsync());
+        var team = Assert.Single(c.Teams);
+        Assert.Equal("Equipo A", team.Name);
+        Assert.Equal(leader, team.LeaderUserId);
+        Assert.Equal(1, team.MemberCount);
+    }
+
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsCommissionAndMembers()
+    {
+        var commission = await AddCommissionAsync("Tecnología");
+        var coordinator = await AddUserAsync("coord@ex.com");
+        await AddMembershipAsync(commission, coordinator, GroupRole.Coordinator);
+        var leader = await AddUserAsync("lider@ex.com");
+        await AddMembershipAsync(commission, leader, GroupRole.Member);
+        Guid teamId;
+        await using (var ctx = _db.CreateContext())
+            teamId = await NewService(ctx).CreateTeamAsync(commission, new CreateTeamRequest { Name = "Equipo A", LeaderUserId = leader }, coordinator, canManageGlobally: false);
+
+        await using var read = _db.CreateContext();
+        var team = await NewService(read).GetTeamDetailAsync(teamId);
+        Assert.Equal(commission, team.CommissionId);
+        Assert.Equal("Tecnología", team.CommissionName);
+        var m = Assert.Single(team.Members);
+        Assert.Equal(leader, m.UserId);
+        Assert.Equal(GroupRole.Leader, m.Role);
+    }
+
+    [Fact]
+    public async Task GetTeamDetailAsync_CommissionId_ThrowsNotFound()
+    {
+        var commission = await AddCommissionAsync("Tecnología");
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).GetTeamDetailAsync(commission));
+        Assert.Equal(404, ex.StatusCode);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
     private async Task<Guid> AddUserAsync(string email)
     {

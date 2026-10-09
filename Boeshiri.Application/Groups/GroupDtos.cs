@@ -9,8 +9,11 @@ public record AddTeamMemberRequest
     public required Guid UserId { get; init; }
 }
 
-/// <summary>Comisión en un listado (RF-GRP-01).</summary>
-public record CommissionDto(Guid Id, string Name, bool Permanent, int MemberCount, string? CoordinatorName);
+/// <summary>
+/// Comisión en un listado (RF-GRP-01), con sus equipos: el panel dibuja con esto
+/// el mapa del colectivo sin pedir el detalle de cada comisión.
+/// </summary>
+public record CommissionDto(Guid Id, string Name, bool Permanent, int MemberCount, string? CoordinatorName, IReadOnlyList<TeamDto> Teams);
 
 /// <summary>Datos para crear una comisión (RF-GRP-01). Coordinador opcional.</summary>
 public record CreateCommissionRequest
@@ -26,8 +29,16 @@ public record CreateCommissionRequest
 /// <summary>Integrante de una comisión/equipo con su rol contextual.</summary>
 public record GroupMemberDto(Guid UserId, string Name, GroupRole Role);
 
-/// <summary>Equipo dentro de una comisión.</summary>
-public record TeamDto(Guid Id, string Name, string? LeaderName, int MemberCount);
+/// <summary>Equipo dentro de una comisión. LeaderUserId evita buscar al líder por su nombre.</summary>
+public record TeamDto(Guid Id, string Name, string? LeaderName, int MemberCount, Guid? LeaderUserId);
+
+/// <summary>Detalle de un equipo: de qué comisión cuelga y quién lo forma (RF-TEAM-01).</summary>
+public record TeamDetailDto(
+    Guid Id,
+    string Name,
+    Guid CommissionId,
+    string CommissionName,
+    IReadOnlyList<GroupMemberDto> Members);
 
 /// <summary>Detalle de una comisión: integrantes y equipos (RF-GRP-02/03, RF-TEAM-01).</summary>
 public record CommissionDetailDto(

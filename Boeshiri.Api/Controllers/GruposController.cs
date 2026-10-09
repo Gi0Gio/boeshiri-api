@@ -27,6 +27,11 @@ public class GruposController(IGroupService groups) : ControllerBase
     public async Task<ActionResult<CommissionDetailDto>> CommissionDetail(Guid id, CancellationToken ct)
         => Ok(await groups.GetCommissionDetailAsync(id, ct));
 
+    /// <summary>Detalle de un equipo: su comisión e integrantes (RF-TEAM-01).</summary>
+    [HttpGet("equipos/{id:guid}")]
+    public async Task<ActionResult<TeamDetailDto>> TeamDetail(Guid id, CancellationToken ct)
+        => Ok(await groups.GetTeamDetailAsync(id, ct));
+
     /// <summary>Crea una comisión (RF-GRP-01). Requiere gestión global.</summary>
     [HasPermission(Permisos.ComisionesVerTodas)]
     [HttpPost("comisiones")]

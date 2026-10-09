@@ -26,7 +26,16 @@ public class GroupService(
                 g.Name,
                 g.Permanent,
                 g.Memberships.Count,
-                g.Memberships.Where(m => m.Role == GroupRole.Coordinator).Select(m => m.User.FullName).FirstOrDefault()))
+                g.Memberships.Where(m => m.Role == GroupRole.Coordinator).Select(m => m.User.FullName).FirstOrDefault(),
+                db.Groups
+                    .Where(t => t.ParentCommissionId == g.Id && t.Type == GroupType.Team)
+                    .OrderBy(t => t.Name)
+                    .Select(t => new TeamDto(
+                        t.Id, t.Name,
+                        t.Memberships.Where(m => m.Role == GroupRole.Leader).Select(m => m.User.FullName).FirstOrDefault(),
+                        t.Memberships.Count,
+                        t.Memberships.Where(m => m.Role == GroupRole.Leader).Select(m => (Guid?)m.UserId).FirstOrDefault()))
+                    .ToList()))
             .ToListAsync(ct);
     }
 
@@ -48,10 +57,28 @@ public class GroupService(
             .Select(g => new TeamDto(
                 g.Id, g.Name,
                 g.Memberships.Where(m => m.Role == GroupRole.Leader).Select(m => m.User.FullName).FirstOrDefault(),
-                g.Memberships.Count))
+                g.Memberships.Count,
+                g.Memberships.Where(m => m.Role == GroupRole.Leader).Select(m => (Guid?)m.UserId).FirstOrDefault()))
             .ToListAsync(ct);
 
         return new CommissionDetailDto(commission.Id, commission.Name, commission.Permanent, members, teams);
+    }
+
+    public async Task<TeamDetailDto> GetTeamDetailAsync(Guid teamId, CancellationToken ct = default)
+    {
+        var team = await db.Groups
+            .Where(g => g.Id == teamId && g.Type == GroupType.Team)
+            .Select(g => new { g.Id, g.Name, CommissionId = g.ParentCommissionId!.Value, CommissionName = g.ParentCommission!.Name })
+            .FirstOrDefaultAsync(ct)
+            ?? throw AppException.NotFound("El equipo no existe.");
+
+        var members = await db.GroupMemberships
+            .Where(m => m.GroupId == teamId)
+            .OrderBy(m => m.Role).ThenBy(m => m.User.FullName)
+            .Select(m => new GroupMemberDto(m.UserId, m.User.FullName, m.Role))
+            .ToListAsync(ct);
+
+        return new TeamDetailDto(team.Id, team.Name, team.CommissionId, team.CommissionName, members);
     }
 
     public async Task<Guid> CreateCommissionAsync(CreateCommissionRequest request, Guid userId, bool canManageGlobally, CancellationToken ct = default)

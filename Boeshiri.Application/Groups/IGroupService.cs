@@ -12,6 +12,9 @@ public interface IGroupService
     /// <summary>Detalle de una comisión: integrantes y equipos (RF-GRP-02).</summary>
     Task<CommissionDetailDto> GetCommissionDetailAsync(Guid commissionId, CancellationToken ct = default);
 
+    /// <summary>Detalle de un equipo: su comisión e integrantes (RF-TEAM-01).</summary>
+    Task<TeamDetailDto> GetTeamDetailAsync(Guid teamId, CancellationToken ct = default);
+
     /// <summary>Crea una comisión. Requiere gestión global (comisiones.ver_todas).</summary>
     Task<Guid> CreateCommissionAsync(CreateCommissionRequest request, Guid userId, bool canManageGlobally, CancellationToken ct = default);
 
