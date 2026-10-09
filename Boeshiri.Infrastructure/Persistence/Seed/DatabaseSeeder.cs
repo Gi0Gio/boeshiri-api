@@ -43,6 +43,7 @@ public static class DatabaseSeeder
         // No se asigna a ningún rol semilla —solo lo cubre el comodín— pero existe
         // como clave para poder concederlo a un rol nuevo sin tocar código.
         ["archivos.gestionar"] = "Ver y limpiar los archivos del almacenamiento",
+        ["convocatorias.gestionar"] = "Crear convocatorias y evaluar sus respuestas",
         ["*"] = "Comodín: concede todos los permisos (Super Administrador)"
     };
 
@@ -60,7 +61,7 @@ public static class DatabaseSeeder
         ("Junta Directiva", "jungle", [
             "panel_admin.ver", "postulantes.decidir", "miembros.gestionar_estado",
             "comisiones.ver_todas", "eventos.gestionar", "publicaciones.moderar",
-            "productos.moderar", "gritos.moderar", "noticias.publicar", "finanzas.ver",
+            "productos.moderar", "gritos.moderar", "noticias.publicar", "finanzas.ver", "convocatorias.gestionar",
             "transparencia.gestionar", "junta.espacio", "documentos.ver_admin"
         ]),
         ("Super Administrador", "candy", ["*"])

@@ -12,6 +12,8 @@ using Boeshiri.Infrastructure.Finance;
 using Boeshiri.Application.Documents;
 using Boeshiri.Application.Events;
 using Boeshiri.Application.Finance;
+using Boeshiri.Application.OpenCalls;
+using Boeshiri.Infrastructure.OpenCalls;
 using Boeshiri.Application.Groups;
 using Boeshiri.Application.Marketplace;
 using Boeshiri.Application.Profiles;
@@ -151,6 +153,9 @@ public static class DependencyInjection
 
         // ── Transparencia ────────────────────────────────────────
         services.AddScoped<ITransparencyService, TransparencyService>();
+
+        // Convocatorias abiertas al público (tallerista, propuestas…)
+        services.AddScoped<IOpenCallService, OpenCallService>();
 
         return services;
     }

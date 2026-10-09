@@ -31,5 +31,6 @@ public static class Permisos
     public const string RolesGestionar = "roles.gestionar";
     public const string AuditoriaVer = "auditoria.ver";
     public const string ArchivosGestionar = "archivos.gestionar";
+    public const string ConvocatoriasGestionar = "convocatorias.gestionar";
     public const string Comodin = "*";
 }

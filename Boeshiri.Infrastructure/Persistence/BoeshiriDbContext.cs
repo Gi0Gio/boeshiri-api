@@ -43,6 +43,10 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<FinancialMovement> FinancialMovements => Set<FinancialMovement>();
     public DbSet<TransparencyArticle> TransparencyArticles => Set<TransparencyArticle>();
+    public DbSet<OpenCall> OpenCalls => Set<OpenCall>();
+    public DbSet<OpenCallQuestion> OpenCallQuestions => Set<OpenCallQuestion>();
+    public DbSet<OpenCallResponse> OpenCallResponses => Set<OpenCallResponse>();
+    public DbSet<OpenCallAnswer> OpenCallAnswers => Set<OpenCallAnswer>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -318,6 +322,7 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.HasOne(x => x.Seller).WithMany().HasForeignKey(x => x.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+
         // ── ProductImage ─────────────────────────────────────────
         b.Entity<ProductImage>(e =>
         {
@@ -386,6 +391,49 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.HasIndex(x => x.Status);
             e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Convocatorias ────────────────────────────────────────
+        b.Entity<OpenCall>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(8000);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.HasIndex(x => x.Status);
+            // Borrar el evento no borra sus convocatorias: quedan sueltas.
+            e.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<OpenCallQuestion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Label).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Help).HasMaxLength(500);
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            e.HasOne(x => x.OpenCall).WithMany(c => c.Questions).HasForeignKey(x => x.OpenCallId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<OpenCallResponse>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Email).HasMaxLength(320).IsRequired();
+            e.Property(x => x.Phone).HasMaxLength(32);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Note).HasMaxLength(2000);
+            e.HasIndex(x => new { x.OpenCallId, x.Email });
+            e.HasOne(x => x.OpenCall).WithMany(c => c.Responses).HasForeignKey(x => x.OpenCallId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<OpenCallAnswer>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(4000);
+            e.Property(x => x.Amount).HasPrecision(12, 2);
+            e.HasOne(x => x.Response).WithMany(r => r.Answers).HasForeignKey(x => x.ResponseId).OnDelete(DeleteBehavior.Cascade);
+            // Una pregunta con respuestas no se borra (el servicio lo impide); aquí se refuerza.
+            e.HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

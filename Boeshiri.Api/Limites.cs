@@ -15,6 +15,7 @@ public static class Limites
     public const string Renovar = "renovar";
     public const string Contacto = "contacto";
     public const string Tarjetas = "tarjetas";
+    public const string Convocatorias = "convocatorias";
 
     /// <summary>
     /// Rutas que el sitio llama a través del proxy de Netlify (public/_redirects).
@@ -75,6 +76,8 @@ public static class Limites
             o.AddPolicy(Renovar, c => Ventana(c, 60, TimeSpan.FromMinutes(1)));
             o.AddPolicy(Contacto, c => Ventana(c, 3, TimeSpan.FromMinutes(10)));
             o.AddPolicy(Tarjetas, c => Ventana(c, 60, TimeSpan.FromMinutes(1)));
+            // Responder una convocatoria es anónimo: pocas por IP, que nadie inunde la bandeja de la Junta.
+            o.AddPolicy(Convocatorias, c => Ventana(c, 5, TimeSpan.FromMinutes(10)));
 
             // Colchón general contra ráfagas: holgado para una persona usando el panel.
             o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(c =>
