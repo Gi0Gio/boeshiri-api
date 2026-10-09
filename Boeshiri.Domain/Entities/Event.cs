@@ -15,10 +15,22 @@ public class Event
     public required string Title { get; set; }
     public string? Description { get; set; }
 
-    /// <summary>Fecha y hora del evento.</summary>
-    public DateTime Date { get; set; }
+    /// <summary>
+    /// En planeación: se anuncia como «Próximamente» aunque falten la fecha o el
+    /// costo. Para confirmarlo hacen falta los dos.
+    /// </summary>
+    public bool Planning { get; set; }
+
+    /// <summary>Inicio (UTC). Null = «fecha por confirmar», solo en planeación.</summary>
+    public DateTime? Date { get; set; }
+
+    /// <summary>Fin (UTC), opcional: ARCANA va de 1:00 a 4:00 p. m.</summary>
+    public DateTime? EndsAt { get; set; }
+
     public string? Location { get; set; }
-    public decimal Cost { get; set; }
+
+    /// <summary>Costo de entrada: 0 = gratis; null = «por definir», solo en planeación.</summary>
+    public decimal? Cost { get; set; }
 
     public Visibility Visibility { get; set; } = Visibility.Public;
     public ContentStatus Status { get; set; } = ContentStatus.Published;

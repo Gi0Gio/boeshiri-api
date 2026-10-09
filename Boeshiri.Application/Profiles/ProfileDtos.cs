@@ -103,7 +103,7 @@ public record CommunityMemberDto(Guid Id, string FullName, string? Discipline, I
 
 public record PublicSocialLinkDto(SocialNetworkType Type, string Value);
 public record ProfileGalleryItemDto(Guid Id, PublicationType Type, string Title, string? CoverImage);
-public record ProfileEventDto(Guid Id, string Title, DateTime Date);
+public record ProfileEventDto(Guid Id, string Title, DateTime? Date);
 
 /// <summary>Perfil público de un miembro, ya filtrado por sus opciones de privacidad.</summary>
 public record PublicProfileDto(

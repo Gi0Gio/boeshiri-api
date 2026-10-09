@@ -147,9 +147,9 @@ public class JerarquiaYValidacionTests : IDisposable
         Assert.Equal(400, ex.StatusCode);
 
         var sinZona = DateTime.SpecifyKind(new DateTime(2026, 12, 1, 18, 0, 0), DateTimeKind.Unspecified);
-        var id = await svc.CreateAsync(autor, new CreateEventRequest { Category = "Arte", Title = "y", Date = sinZona, Visibility = Visibility.Public });
+        var id = await svc.CreateAsync(autor, new CreateEventRequest { Category = "Arte", Title = "y", Date = sinZona, Cost = 0, Visibility = Visibility.Public });
         var ev = await c.Events.SingleAsync(e => e.Id == id);
-        Assert.Equal(DateTimeKind.Utc, ev.Date.Kind);
+        Assert.Equal(DateTimeKind.Utc, ev.Date!.Value.Kind);
     }
 
     public void Dispose() => _db.Dispose();

@@ -60,7 +60,7 @@ public class MisDatosService(
         var eventos = await db.EventAttendees.AsNoTracking()
             .Where(a => a.UserId == userId)
             .OrderBy(a => a.Event.Date)
-            .Select(a => new MisDatosContenido(a.Event.Title, "Asistió", a.Event.Date))
+            .Select(a => new MisDatosContenido(a.Event.Title, "Asistió", a.Event.Date ?? a.Event.CreatedAt))
             .ToListAsync(ct);
 
         var avisos = await db.Notifications.AsNoTracking()

@@ -30,14 +30,21 @@ public record CreateEventRequest
     [MaxLength(4000)]
     public string? Description { get; init; }
 
-    [Required]
-    public required DateTime Date { get; init; }
+    /// <summary>En planeación puede faltar la fecha o el costo; confirmado, no.</summary>
+    public bool Planning { get; init; }
+
+    /// <summary>Inicio. Null = «fecha por confirmar» (solo en planeación).</summary>
+    public DateTime? Date { get; init; }
+
+    /// <summary>Fin, opcional. Tiene que ser después del inicio.</summary>
+    public DateTime? EndsAt { get; init; }
 
     [MaxLength(200)]
     public string? Location { get; init; }
 
+    /// <summary>0 = gratis; null = «por definir» (solo en planeación).</summary>
     [Range(0, 100000)]
-    public decimal Cost { get; init; }
+    public decimal? Cost { get; init; }
 
     public Visibility Visibility { get; init; } = Visibility.Public;
     public Guid? ResponsibleId { get; init; }
@@ -56,17 +63,27 @@ public record UpdateEventRequest
     [MaxLength(4000)]
     public string? Description { get; init; }
 
-    [Required]
-    public required DateTime Date { get; init; }
+    /// <summary>En planeación puede faltar la fecha o el costo; confirmado, no.</summary>
+    public bool Planning { get; init; }
+
+    /// <summary>Inicio. Null = «fecha por confirmar» (solo en planeación).</summary>
+    public DateTime? Date { get; init; }
+
+    /// <summary>Fin, opcional. Tiene que ser después del inicio.</summary>
+    public DateTime? EndsAt { get; init; }
 
     [MaxLength(200)]
     public string? Location { get; init; }
 
+    /// <summary>0 = gratis; null = «por definir» (solo en planeación).</summary>
     [Range(0, 100000)]
-    public decimal Cost { get; init; }
+    public decimal? Cost { get; init; }
 
     public Visibility Visibility { get; init; } = Visibility.Public;
     public Guid? ResponsibleId { get; init; }
+
+    /// <summary>Lista final de imágenes (la primera es la portada). Null = dejarlas como están.</summary>
+    public List<string>? Images { get; init; }
 }
 
 public record ChangeEventStatusRequest
@@ -89,9 +106,11 @@ public record EventSummaryDto(
     Guid Id,
     string Category,
     string Title,
-    DateTime Date,
+    bool Planning,
+    DateTime? Date,
+    DateTime? EndsAt,
     string? Location,
-    decimal Cost,
+    decimal? Cost,
     Visibility Visibility,
     ContentStatus Status,
     int AttendanceCount,
@@ -102,9 +121,11 @@ public record EventDetailDto(
     string Category,
     string Title,
     string? Description,
-    DateTime Date,
+    bool Planning,
+    DateTime? Date,
+    DateTime? EndsAt,
     string? Location,
-    decimal Cost,
+    decimal? Cost,
     Visibility Visibility,
     ContentStatus Status,
     Guid? ResponsibleId,
@@ -113,4 +134,4 @@ public record EventDetailDto(
     IReadOnlyList<string> Images);
 
 /// <summary>Evento del historial del miembro (RF-MEM-08).</summary>
-public record MyEventDto(Guid Id, string Title, string Category, DateTime Date);
+public record MyEventDto(Guid Id, string Title, string Category, DateTime? Date);

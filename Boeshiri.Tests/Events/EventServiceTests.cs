@@ -136,6 +136,87 @@ public class EventServiceTests : IDisposable
         Assert.Equal("Jam", history[0].Title);
     }
 
+    // ── Planeación: fecha y costo pueden esperar ─────────────────
+    [Fact]
+    public async Task CreateAsync_Planning_WithoutDateOrCost_IsListedAsUpcomingAfterDated()
+    {
+        await using (var ctx = _db.CreateContext())
+        {
+            var svc = NewService(ctx);
+            await svc.CreateAsync(_admin, new CreateEventRequest { Category = "Taller", Title = "ARCANA", Planning = true, Visibility = Visibility.Public });
+            await svc.CreateAsync(_admin, Req("Con fecha"));
+        }
+
+        await using var read = _db.CreateContext();
+        var proximos = await NewService(read).ListPublicAsync(EventWhen.Upcoming, includeMembersOnly: false);
+        Assert.Equal(["Con fecha", "ARCANA"], proximos.Select(e => e.Title));
+        var arcana = proximos.Single(e => e.Title == "ARCANA");
+        Assert.True(arcana.Planning);
+        Assert.Null(arcana.Date);
+        Assert.Null(arcana.Cost);
+        Assert.Empty(await NewService(read).ListPublicAsync(EventWhen.Past, includeMembersOnly: false));
+    }
+
+    [Theory]
+    [InlineData(false, true)]   // confirmado sin costo
+    [InlineData(true, false)]   // confirmado sin fecha
+    public async Task CreateAsync_Confirmed_MissingDateOrCost_ThrowsBadRequest(bool conFecha, bool conCosto)
+    {
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).CreateAsync(_admin, new CreateEventRequest
+        {
+            Category = "Taller", Title = "x", Planning = false,
+            Date = conFecha ? DateTime.UtcNow.AddDays(3) : null,
+            Cost = conCosto ? 12m : null,
+        }));
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateAsync_EndBeforeStart_ThrowsBadRequest()
+    {
+        var inicio = DateTime.UtcNow.AddDays(3);
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).CreateAsync(_admin,
+            Req("x") with { Date = inicio, EndsAt = inicio.AddHours(-1) }));
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReplacesImagesAndConfirms()
+    {
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(_admin, new CreateEventRequest { Category = "Taller", Title = "ARCANA", Planning = true, Images = ["https://cdn.test/publicaciones/a.webp"] });
+
+        var inicio = DateTime.UtcNow.AddDays(30);
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, new UpdateEventRequest
+            {
+                Category = "Taller", Title = "ARCANA", Planning = false,
+                Date = inicio, EndsAt = inicio.AddHours(3), Cost = 12m,
+                Images = ["https://cdn.test/publicaciones/b.webp", "https://cdn.test/publicaciones/c.webp"],
+            });
+
+        await using var check = _db.CreateContext();
+        var ev = await check.Events.Include(e => e.Images).SingleAsync(e => e.Id == id);
+        Assert.False(ev.Planning);
+        Assert.Equal(12m, ev.Cost);
+        Assert.Equal(["https://cdn.test/publicaciones/b.webp", "https://cdn.test/publicaciones/c.webp"],
+            ev.Images.OrderBy(i => i.Order).Select(i => i.Url));
+    }
+
+    [Fact]
+    public async Task RecordAttendanceAsync_WithoutDate_ThrowsBadRequest()
+    {
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+            id = await NewService(ctx).CreateAsync(_admin, new CreateEventRequest { Category = "Taller", Title = "ARCANA", Planning = true });
+        await using var c2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() => NewService(c2).RecordAttendanceAsync(id, new RecordAttendanceRequest { Count = 10 }, _admin));
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     private async Task<Guid> AddUserAsync(string email)
     {
         await using var ctx = _db.CreateContext();
