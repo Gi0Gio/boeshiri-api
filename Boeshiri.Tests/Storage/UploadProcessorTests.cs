@@ -149,6 +149,21 @@ public class UploadProcessorTests
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+    /// <summary>
+    /// El límite de 5 MB es del archivo, no de la imagen: un PNG liso de pocos KB
+    /// puede tener 12.000 px de lado. Se rechaza antes de decodificarlo entero.
+    /// </summary>
+    [Fact]
+    public async Task Image_WithHugeDimensions_IsRejectedBeforeDecoding()
+    {
+        using var gigante = await ImagenAsync(12_000, 10, new PngEncoder());
+        Assert.True(gigante.Length < 5 * 1024 * 1024);
+
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            _processor.ProcessAsync(gigante, "gigante.png", "publicaciones"));
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     private static async Task<MemoryStream> ImagenAsync(int ancho, int alto, IImageEncoder encoder)
     {
         using var imagen = new Image<Rgba32>(ancho, alto);

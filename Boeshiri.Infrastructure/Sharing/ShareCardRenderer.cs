@@ -1,4 +1,8 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using Boeshiri.Infrastructure.Storage;
+using Microsoft.Extensions.Caching.Memory;
 using Boeshiri.Application.Abstractions;
 using Microsoft.Extensions.Logging;
 using SixLabors.Fonts;
@@ -32,7 +36,25 @@ public class ShareCardRenderer : IShareCardRenderer
     private static readonly FontFamily Body;
 
     private readonly HttpClient _http;
+    private readonly IFileStorage _storage;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<ShareCardRenderer> _logger;
+
+    /// <summary>Tope de la imagen que se descarga para componer la tarjeta.</summary>
+    private const int MaxBytesImagen = 8 * 1024 * 1024;
+
+    /// <summary>
+    /// Tope de píxeles antes de decodificar: un PNG de pocos KB puede declarar
+    /// 50.000×50.000 y pedir gigas de memoria al abrirse.
+    /// </summary>
+    private const long MaxPixeles = 40_000_000;
+
+    /// <summary>
+    /// Cuánto se guarda una tarjeta ya compuesta. Componerla cuesta CPU y la ruta es
+    /// anónima: sin caché, pedirla en bucle bastaba para cargar el servidor. La clave
+    /// es el contenido, así que editar el anuncio produce otra tarjeta al momento.
+    /// </summary>
+    private static readonly TimeSpan VidaEnCache = TimeSpan.FromHours(6);
 
     static ShareCardRenderer()
     {
@@ -41,9 +63,11 @@ public class ShareCardRenderer : IShareCardRenderer
         Body = Load(collection, "Montserrat.ttf");
     }
 
-    public ShareCardRenderer(HttpClient http, ILogger<ShareCardRenderer> logger)
+    public ShareCardRenderer(HttpClient http, IFileStorage storage, IMemoryCache cache, ILogger<ShareCardRenderer> logger)
     {
         _http = http;
+        _storage = storage;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -56,6 +80,27 @@ public class ShareCardRenderer : IShareCardRenderer
     }
 
     public async Task<byte[]> RenderAsync(ShareCardContent content, ShareFormat format, CancellationToken ct = default)
+    {
+        var clave = ClaveDeCache(content, format);
+        if (_cache.TryGetValue(clave, out byte[]? guardada) && guardada is not null)
+            return guardada;
+
+        var bytes = await ComponerAsync(content, format, ct);
+        _cache.Set(clave, bytes, new MemoryCacheEntryOptions
+        {
+            Size = bytes.Length,
+            AbsoluteExpirationRelativeToNow = VidaEnCache,
+        });
+        return bytes;
+    }
+
+    private static string ClaveDeCache(ShareCardContent c, ShareFormat format)
+    {
+        var texto = string.Join('\u001f', format, c.Eyebrow, c.Title, c.Subtitle, c.ImageUrl);
+        return "tarjeta:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(texto)));
+    }
+
+    private async Task<byte[]> ComponerAsync(ShareCardContent content, ShareFormat format, CancellationToken ct)
     {
         var (ancho, alto) = format == ShareFormat.Story ? (1080, 1920) : (1080, 1080);
 
@@ -212,14 +257,46 @@ public class ShareCardRenderer : IShareCardRenderer
     /// </summary>
     private static string EspaciarLetras(string texto) => string.Join(' ', texto.ToCharArray());
 
+    /// <summary>
+    /// Descarga la imagen del anuncio o la publicación. Solo de NUESTRO bucket: la URL
+    /// la guardó un usuario, y descargar cualquier dirección convertía esta ruta
+    /// anónima en una forma de hacer que el servidor pidiera lo que fuera (incluida
+    /// la red interna) o se tragara un archivo de varios GB.
+    /// </summary>
     private async Task<Image<Rgba32>?> DescargarAsync(string? url, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
 
+        if (!ArchivosGuard.CarpetasImagen.Any(c => _storage.IsOwnUrl(url, c)))
+        {
+            _logger.LogInformation("Tarjeta sin imagen: {Url} no es del almacenamiento propio", url);
+            return null;
+        }
+
         try
         {
-            var bytes = await _http.GetByteArrayAsync(url, ct);
-            return Image.Load<Rgba32>(bytes);
+            using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!resp.IsSuccessStatusCode || resp.Content.Headers.ContentLength > MaxBytesImagen)
+                return null;
+
+            await using var origen = await resp.Content.ReadAsStreamAsync(ct);
+            using var buffer = new MemoryStream();
+            var trozo = new byte[81920];
+            int leidos;
+            while ((leidos = await origen.ReadAsync(trozo, ct)) > 0)
+            {
+                if (buffer.Length + leidos > MaxBytesImagen)
+                    return null;
+                buffer.Write(trozo, 0, leidos);
+            }
+
+            buffer.Position = 0;
+            var info = await Image.IdentifyAsync(buffer, ct);
+            if ((long)info.Width * info.Height > MaxPixeles)
+                return null;
+
+            buffer.Position = 0;
+            return await Image.LoadAsync<Rgba32>(buffer, ct);
         }
         catch (Exception ex)
         {

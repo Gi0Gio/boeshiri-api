@@ -82,7 +82,12 @@ public static class DependencyInjection
 
         // Tarjetas para compartir en redes. Lleva HttpClient porque descarga la
         // imagen del anuncio o la publicación para componerla dentro.
-        services.AddHttpClient<IShareCardRenderer, ShareCardRenderer>();
+        // Timeout corto: la tarjeta se pide desde el robot de WhatsApp, y una imagen
+        // lenta no puede tener un hilo ocupado los 100 s por defecto.
+        services.AddHttpClient<IShareCardRenderer, ShareCardRenderer>(c => c.Timeout = TimeSpan.FromSeconds(10));
+
+        // Caché en memoria con tope (64 MB): las tarjetas compuestas viven aquí.
+        services.AddMemoryCache(o => o.SizeLimit = 64L * 1024 * 1024);
 
         // ── Autenticación / correo ───────────────────────────────
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();

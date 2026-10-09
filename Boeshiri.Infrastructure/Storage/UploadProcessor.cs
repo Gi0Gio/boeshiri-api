@@ -20,6 +20,14 @@ public class UploadProcessor : IUploadProcessor
     private const long MaxPdfBytes = 10 * 1024 * 1024;
     private const int WebpQuality = 82;
 
+    /// <summary>
+    /// Tope de dimensiones ANTES de decodificar. El límite de 5 MB es del archivo,
+    /// no de la imagen: un PNG pequeño puede declarar 50.000×50.000 px y pedir
+    /// gigas de memoria al abrirse. Sobra para cualquier foto de móvil o cámara.
+    /// </summary>
+    private const int MaxLado = 10_000;
+    private const long MaxPixeles = 50_000_000;
+
     /// <summary>Lado máximo en píxeles por carpeta. Ausente = carpeta de documentos.</summary>
     private static readonly Dictionary<string, int> ImageFolders = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -53,7 +61,15 @@ public class UploadProcessor : IUploadProcessor
         Image image;
         try
         {
+            var info = await Image.IdentifyAsync(buffer, ct);
+            if (info.Width > MaxLado || info.Height > MaxLado || (long)info.Width * info.Height > MaxPixeles)
+                throw AppException.BadRequest($"La imagen es demasiado grande: máximo {MaxLado:N0} px por lado.");
+            buffer.Position = 0;
             image = await Image.LoadAsync(buffer, ct);
+        }
+        catch (AppException)
+        {
+            throw;
         }
         catch (Exception)
         {
