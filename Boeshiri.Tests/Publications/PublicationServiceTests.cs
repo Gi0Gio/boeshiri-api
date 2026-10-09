@@ -180,7 +180,7 @@ public class PublicationServiceTests : IDisposable
             id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
             {
                 Type = PublicationType.Article, Title = "Con fotos", Body = "Cuerpo",
-                Images = ["https://cdn.test/a.webp", "https://cdn.test/b.webp"],
+                Images = ["https://cdn.test/publicaciones/a.webp", "https://cdn.test/publicaciones/b.webp"],
             }, canPublishNews: true);
 
         // Se queda la primera, se retira la segunda y entra una nueva.
@@ -188,16 +188,16 @@ public class PublicationServiceTests : IDisposable
             await NewService(ctx).UpdateAsync(id, author, new UpdatePublicationRequest
             {
                 Title = "Con fotos", Body = "Cuerpo",
-                Images = ["https://cdn.test/a.webp", "https://cdn.test/c.webp"],
+                Images = ["https://cdn.test/publicaciones/a.webp", "https://cdn.test/publicaciones/c.webp"],
             });
 
         await using var check = _db.CreateContext();
         var imgs = await check.PublicationImages.Where(i => i.PublicationId == id).OrderBy(i => i.Order).ToListAsync();
 
-        Assert.Equal(["https://cdn.test/a.webp", "https://cdn.test/c.webp"], imgs.Select(i => i.Url));
+        Assert.Equal(["https://cdn.test/publicaciones/a.webp", "https://cdn.test/publicaciones/c.webp"], imgs.Select(i => i.Url));
         // La retirada deja de estar referenciada: sin borrarla, cada edición
         // acumularía archivos que ya nadie puede ver.
-        Assert.Equal(["https://cdn.test/b.webp"], _storage.Deleted);
+        Assert.Equal(["https://cdn.test/publicaciones/b.webp"], _storage.Deleted);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class PublicationServiceTests : IDisposable
             id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
             {
                 Type = PublicationType.Article, Title = "T", Body = "C",
-                Images = ["https://cdn.test/a.webp"],
+                Images = ["https://cdn.test/publicaciones/a.webp"],
             }, canPublishNews: true);
 
         await using (var ctx = _db.CreateContext())
@@ -247,7 +247,7 @@ public class PublicationServiceTests : IDisposable
             id = await NewService(ctx).CreateAsync(author, new CreatePublicationRequest
             {
                 Type = PublicationType.Photo, Title = "Foto",
-                Images = ["https://cdn.test/a.webp"],
+                Images = ["https://cdn.test/publicaciones/a.webp"],
             }, canPublishNews: true);
 
         // El tipo no cambia al editar, así que la regla del alta sigue aplicando.

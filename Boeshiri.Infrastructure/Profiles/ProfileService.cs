@@ -5,6 +5,7 @@ using Boeshiri.Application.Profiles;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
 using Boeshiri.Infrastructure.Persistence;
+using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace Boeshiri.Infrastructure.Profiles;
@@ -45,6 +46,8 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
         // cambio de avatar deja un objeto que nadie volverá a referenciar y que
         // sigue ocupando (y contando para el límite gratuito de 10 GB).
         var fotoAnterior = user.PhotoUrl;
+        if (request.PhotoUrl is not null)
+            ArchivosGuard.ExigirPropias(storage, [request.PhotoUrl], fotoAnterior is null ? null : [fotoAnterior], ["avatars", "misc"], "Foto");
         user.PhotoUrl = request.PhotoUrl;
 
         user.Tags.Clear();
@@ -67,7 +70,7 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
         // Después de guardar: si el borrado remoto falla, el perfil ya quedó correcto
         // y solo sobra un objeto en el bucket. Al revés perderíamos la foto nueva.
         if (!string.IsNullOrWhiteSpace(fotoAnterior) && fotoAnterior != user.PhotoUrl)
-            await storage.DeleteAsync(fotoAnterior, ct);
+            await ArchivosGuard.BorrarSiSinUsoAsync(db, storage, fotoAnterior, ct);
     }
 
     public async Task UpdatePrivacyAsync(Guid userId, UpdatePrivacyRequest request, CancellationToken ct = default)
@@ -191,10 +194,17 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
         SocialNetworkType.Instagram or SocialNetworkType.Tiktok => value.StartsWith('@') ? value : "@" + value,
         SocialNetworkType.Mail => IsValidEmail(value) ? value : throw AppException.BadRequest("Correo inválido en las redes."),
         SocialNetworkType.Whatsapp => value.StartsWith('+') ? value : throw AppException.BadRequest("WhatsApp requiere código de país (ej. +507...)."),
+        SocialNetworkType.Web => EnlaceWeb(value),
         _ => value
     };
 
     private static bool IsValidEmail(string value) => MailAddress.TryCreate(value, out _);
+
+    private static string EnlaceWeb(string value)
+    {
+        Enlaces.ExigirWeb(value, "Sitio web");
+        return value;
+    }
 
     private static IEnumerable<string> NormalizeTags(IEnumerable<string>? tags) =>
         (tags ?? [])

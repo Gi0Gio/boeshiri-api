@@ -57,7 +57,7 @@ public class MarketplaceServiceTests : IDisposable
 
         Guid id;
         await using (var ctx = _db.CreateContext())
-            id = await NewService(ctx).CreateAsync(seller, Req() with { Images = ["https://cdn.test/a.png", "https://cdn.test/b.png"] });
+            id = await NewService(ctx).CreateAsync(seller, Req() with { Images = ["https://cdn.test/productos/a.png", "https://cdn.test/productos/b.png"] });
 
         await using (var ctx = _db.CreateContext())
             await NewService(ctx).UpdateAsync(id, seller, new UpdateProductRequest
@@ -65,14 +65,14 @@ public class MarketplaceServiceTests : IDisposable
                 Name = "Lamina",
                 Category = "Arte",
                 Price = 25m,
-                Images = ["https://cdn.test/b.png", "https://cdn.test/c.png"]
+                Images = ["https://cdn.test/productos/b.png", "https://cdn.test/productos/c.png"]
             });
 
         await using var check = _db.CreateContext();
         var urls = await check.ProductImages.Where(i => i.ProductId == id).OrderBy(i => i.Order).Select(i => i.Url).ToListAsync();
 
-        Assert.Equal(["https://cdn.test/b.png", "https://cdn.test/c.png"], urls);
-        Assert.Equal(["https://cdn.test/a.png"], _storage.Deleted);
+        Assert.Equal(["https://cdn.test/productos/b.png", "https://cdn.test/productos/c.png"], urls);
+        Assert.Equal(["https://cdn.test/productos/a.png"], _storage.Deleted);
     }
 
     /// <summary>Sin el campo, las imágenes se quedan como estaban.</summary>
@@ -83,7 +83,7 @@ public class MarketplaceServiceTests : IDisposable
 
         Guid id;
         await using (var ctx = _db.CreateContext())
-            id = await NewService(ctx).CreateAsync(seller, Req() with { Images = ["https://cdn.test/a.png"] });
+            id = await NewService(ctx).CreateAsync(seller, Req() with { Images = ["https://cdn.test/productos/a.png"] });
 
         await using (var ctx = _db.CreateContext())
             await NewService(ctx).UpdateAsync(id, seller, new UpdateProductRequest { Name = "Otra", Category = "Arte", Price = 30m });

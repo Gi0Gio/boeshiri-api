@@ -29,6 +29,15 @@ public sealed class FakeFileStorage : IFileStorage
         => Task.FromResult<IReadOnlyList<StoredObject>>(
             string.IsNullOrEmpty(prefix) ? Objects : Objects.Where(o => o.Key.StartsWith(prefix)).ToList());
 
+    /// <summary>Misma regla que R2FileStorage: archivo directo de la carpeta, sin «..».</summary>
+    public bool IsOwnUrl(string? url, string folder)
+    {
+        var prefijo = $"https://cdn.test/{folder}/";
+        if (url is null || !url.StartsWith(prefijo, StringComparison.Ordinal)) return false;
+        var resto = url[prefijo.Length..];
+        return resto.Length > 0 && !resto.Contains('/') && !resto.Contains("..") && !resto.Contains('?');
+    }
+
     public Task DeleteByKeyAsync(string key, CancellationToken ct = default)
     {
         Deleted.Add(key);

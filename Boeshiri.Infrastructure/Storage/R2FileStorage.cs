@@ -131,6 +131,16 @@ public sealed class R2FileStorage : IFileStorage, IDisposable
         }
     }
 
+    public bool IsOwnUrl(string? url, string folder)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !AllowedFolders.Contains(folder))
+            return false;
+        var prefijo = $"{_o.PublicBaseUrl.TrimEnd('/')}/{folder.ToLowerInvariant()}/";
+        // Sin «..» ni barras de más: la key tiene que ser un archivo directo de la carpeta.
+        var resto = url.StartsWith(prefijo, StringComparison.Ordinal) ? url[prefijo.Length..] : null;
+        return !string.IsNullOrEmpty(resto) && !resto.Contains('/') && !resto.Contains("..") && !resto.Contains('?');
+    }
+
     public void Dispose() => _client.Dispose();
 }
 
@@ -150,4 +160,6 @@ public sealed class DisabledFileStorage : IFileStorage
         => Task.FromResult<IReadOnlyList<StoredObject>>([]);
 
     public Task DeleteByKeyAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+
+    public bool IsOwnUrl(string? url, string folder) => false;
 }

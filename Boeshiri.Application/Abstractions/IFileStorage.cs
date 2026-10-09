@@ -29,6 +29,13 @@ public interface IFileStorage
 
     /// <summary>Borra un objeto por su key exacta (gestor del super admin).</summary>
     Task DeleteByKeyAsync(string key, CancellationToken ct = default);
+
+    /// <summary>
+    /// ¿La URL es un objeto de NUESTRO bucket, dentro de esa carpeta? Las URLs de
+    /// imágenes y documentos las manda el cliente: sin esta comprobación se podía
+    /// guardar cualquier dirección (y luego borrar del bucket archivos ajenos).
+    /// </summary>
+    bool IsOwnUrl(string? url, string folder);
 }
 
 /// <summary>Objeto almacenado, para el gestor de archivos.</summary>

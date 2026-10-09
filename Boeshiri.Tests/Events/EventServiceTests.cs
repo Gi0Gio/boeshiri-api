@@ -17,7 +17,7 @@ public class EventServiceTests : IDisposable
     private readonly Guid _admin = Guid.NewGuid();
 
     private EventService NewService(BoeshiriDbContext ctx) =>
-        new(ctx, new NotificationService(ctx), new AuditLogger(ctx));
+        new(ctx, new NotificationService(ctx), new AuditLogger(ctx), new FakeFileStorage());
 
     private static CreateEventRequest Req(string title = "Evento", Visibility vis = Visibility.Public, DateTime? date = null, List<string>? images = null) =>
         new()

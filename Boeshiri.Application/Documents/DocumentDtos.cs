@@ -58,7 +58,9 @@ public record DocumentDto(
     string Category,
     DocumentLibrary Library,
     DocumentAccessLevel AccessLevel,
-    string FileUrl,
+    // No sale en la respuesta: el bucket es público, y con la URL directa cualquiera
+    // descarga el archivo saltándose el nivel de acceso. Se descarga por la API.
+    [property: System.Text.Json.Serialization.JsonIgnore] string FileUrl,
     string? FileName,
     string? ContentType,
     long? SizeBytes,

@@ -6,6 +6,7 @@ using Boeshiri.Application.Documents;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
 using Boeshiri.Infrastructure.Persistence;
+using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace Boeshiri.Infrastructure.Documents;
@@ -56,6 +57,8 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit, IFileStor
             throw AppException.Forbidden("No tienes permiso para subir a la biblioteca Comunidad.");
         }
 
+        ArchivosGuard.ExigirPropias(storage, [request.FileUrl], null, [ArchivosGuard.CarpetaDocumentos], "Archivo");
+
         var doc = new Document
         {
             Name = request.Name.Trim(),
@@ -86,6 +89,7 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit, IFileStor
         // Sobrescribe: no se conservan versiones anteriores (RF-DOC-01), así que el
         // archivo anterior deja de estar referenciado y hay que soltarlo del bucket.
         var archivoAnterior = doc.FileUrl;
+        ArchivosGuard.ExigirPropias(storage, [request.FileUrl], [archivoAnterior], [ArchivosGuard.CarpetaDocumentos], "Archivo");
 
         doc.Name = request.Name.Trim();
         doc.Category = request.Category.Trim();
@@ -98,7 +102,7 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit, IFileStor
         await db.SaveChangesAsync(ct);
 
         if (!string.IsNullOrWhiteSpace(archivoAnterior) && archivoAnterior != doc.FileUrl)
-            await storage.DeleteAsync(archivoAnterior, ct);
+            await ArchivosGuard.BorrarSiSinUsoAsync(db, storage, archivoAnterior, ct);
     }
 
     public async Task DeleteAsync(Guid id, Guid userId, bool canManageAdmin, CancellationToken ct = default)
@@ -115,7 +119,7 @@ public class DocumentService(BoeshiriDbContext db, IAuditLogger audit, IFileStor
         // Sin esto el archivo quedaba huérfano en el bucket para siempre: la fila
         // desaparecía de la base y nadie volvía a conocer su URL.
         if (!string.IsNullOrWhiteSpace(doc.FileUrl))
-            await storage.DeleteAsync(doc.FileUrl, ct);
+            await ArchivosGuard.BorrarSiSinUsoAsync(db, storage, doc.FileUrl, ct);
     }
 
     private static void EnsureCanManage(Document doc, Guid userId, bool canManageAdmin)

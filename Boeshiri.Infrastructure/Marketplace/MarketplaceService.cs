@@ -7,6 +7,7 @@ using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
 using Boeshiri.Infrastructure.Auth;
 using Boeshiri.Infrastructure.Persistence;
+using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -94,6 +95,7 @@ public class MarketplaceService(
             throw AppException.BadRequest($"Máximo {MaxImages} imágenes por producto.");
 
         ValidatePriceRange(request.Kind, request.Price, request.PriceMax);
+        ArchivosGuard.ExigirPropias(storage, request.Images, null, ArchivosGuard.CarpetasImagen, "Imágenes");
 
         var product = new Product
         {
@@ -128,6 +130,7 @@ public class MarketplaceService(
 
         if (request.Images is not null && request.Images.Count > MaxImages)
             throw AppException.BadRequest($"Máximo {MaxImages} imágenes por producto.");
+        ArchivosGuard.ExigirPropias(storage, request.Images, p.Images.Select(i => i.Url), ArchivosGuard.CarpetasImagen, "Imágenes");
 
         p.Name = request.Name.Trim();
         p.Category = request.Category.Trim();
@@ -163,7 +166,7 @@ public class MarketplaceService(
         // Después de guardar: si el borrado remoto falla queda un huérfano, no una
         // referencia rota.
         foreach (var url in eliminadas)
-            await storage.DeleteAsync(url, ct);
+            await ArchivosGuard.BorrarSiSinUsoAsync(db, storage, url, ct);
     }
 
     public async Task ChangeStatusAsync(Guid id, ProductStatusAction action, Guid userId, bool canModerate, CancellationToken ct = default)

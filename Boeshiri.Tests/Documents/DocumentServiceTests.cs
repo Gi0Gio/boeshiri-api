@@ -22,7 +22,7 @@ public class DocumentServiceTests : IDisposable
         DocumentLibrary library = DocumentLibrary.Community,
         DocumentAccessLevel access = DocumentAccessLevel.Members,
         string name = "Doc") =>
-        new() { Name = name, Category = "Investigacion", Library = library, AccessLevel = access, FileUrl = "https://r2/doc.pdf" };
+        new() { Name = name, Category = "Investigacion", Library = library, AccessLevel = access, FileUrl = "https://cdn.test/documentos/doc.pdf" };
 
     // ── Autorización de subida (RF-DOC-03/05) ────────────────────
     [Fact]
@@ -129,7 +129,7 @@ public class DocumentServiceTests : IDisposable
             id = await NewService(ctx).CreateAsync(author, Req(), canUploadCommunity: true, canManageAdmin: false);
 
         await using var ctx2 = _db.CreateContext();
-        var req = new ReplaceDocumentRequest { Name = "N", Category = "C", FileUrl = "https://r2/v2.pdf" };
+        var req = new ReplaceDocumentRequest { Name = "N", Category = "C", FileUrl = "https://cdn.test/documentos/v2.pdf" };
         var ex = await Assert.ThrowsAsync<AppException>(() =>
             NewService(ctx2).ReplaceAsync(id, stranger, req, canManageAdmin: false));
         Assert.Equal(403, ex.StatusCode);
@@ -145,12 +145,12 @@ public class DocumentServiceTests : IDisposable
 
         await using (var ctx = _db.CreateContext())
             await NewService(ctx).ReplaceAsync(id, author,
-                new ReplaceDocumentRequest { Name = "Nuevo", Category = "Investigacion", FileUrl = "https://r2/v2.pdf" },
+                new ReplaceDocumentRequest { Name = "Nuevo", Category = "Investigacion", FileUrl = "https://cdn.test/documentos/v2.pdf" },
                 canManageAdmin: false);
 
         await using var check = _db.CreateContext();
         var doc = await check.Documents.SingleAsync(d => d.Id == id);
-        Assert.Equal("https://r2/v2.pdf", doc.FileUrl); // sobrescrito, sin versiones
+        Assert.Equal("https://cdn.test/documentos/v2.pdf", doc.FileUrl); // sobrescrito, sin versiones
         Assert.NotNull(doc.UpdatedAt);
     }
 

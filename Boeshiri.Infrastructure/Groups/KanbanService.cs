@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Storage;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Groups;
 using Boeshiri.Domain.Entities;
@@ -85,7 +86,8 @@ public class KanbanService(BoeshiriDbContext db) : IKanbanService
         if (!IsManager(role) && !isAssignee)
             throw AppException.Forbidden("Solo el líder o un responsable puede añadir enlaces.");
 
-        db.KanbanTaskLinks.Add(new KanbanTaskLink { TaskId = taskId, Title = request.Title, Url = request.Url });
+        Enlaces.ExigirWeb(request.Url, "Enlace");
+        db.KanbanTaskLinks.Add(new KanbanTaskLink { TaskId = taskId, Title = request.Title.Trim(), Url = request.Url.Trim() });
         await db.SaveChangesAsync(ct);
     }
 

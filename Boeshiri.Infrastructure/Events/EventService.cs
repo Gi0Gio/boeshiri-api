@@ -1,3 +1,5 @@
+using Boeshiri.Application.Abstractions;
+using Boeshiri.Infrastructure.Storage;
 using System.Linq.Expressions;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
@@ -14,7 +16,8 @@ namespace Boeshiri.Infrastructure.Events;
 public class EventService(
     BoeshiriDbContext db,
     INotificationService notifications,
-    IAuditLogger audit) : IEventService
+    IAuditLogger audit,
+    IFileStorage storage) : IEventService
 {
     public async Task<IReadOnlyList<EventSummaryDto>> ListPublicAsync(EventWhen when, bool includeMembersOnly, CancellationToken ct = default)
     {
@@ -85,6 +88,7 @@ public class EventService(
     {
         if ((request.Images?.Count ?? 0) > 4)
             throw AppException.BadRequest("Máximo 4 imágenes por evento.");
+        ArchivosGuard.ExigirPropias(storage, request.Images, null, ArchivosGuard.CarpetasImagen, "Imágenes");
 
         var ev = new Event
         {

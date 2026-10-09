@@ -6,6 +6,7 @@ using Boeshiri.Application.Publications;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
 using Boeshiri.Infrastructure.Persistence;
+using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace Boeshiri.Infrastructure.Publications;
@@ -19,6 +20,10 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
             throw AppException.Forbidden("Solo Periodistas y la Junta pueden publicar Noticias.");
 
         ValidateByType(request);
+        ArchivosGuard.ExigirPropias(storage, request.Images, null, ArchivosGuard.CarpetasImagen, "Imágenes");
+        Enlaces.ExigirWeb(request.ExternalUrl, "Enlace");
+        foreach (var l in request.Links ?? [])
+            Enlaces.ExigirWeb(l.Url, "Enlace de referencia");
 
         var publication = new Publication
         {
@@ -120,6 +125,10 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
         // ya tiene: sin esto se podría dejar una Foto sin ninguna imagen.
         if (request.Images is not null)
             ValidateImages(p.Type, request.Images.Count);
+        ArchivosGuard.ExigirPropias(storage, request.Images, p.Images.Select(i => i.Url), ArchivosGuard.CarpetasImagen, "Imágenes");
+        Enlaces.ExigirWeb(request.ExternalUrl, "Enlace");
+        foreach (var l in request.Links ?? [])
+            Enlaces.ExigirWeb(l.Url, "Enlace de referencia");
 
         p.Title = request.Title.Trim();
         p.Body = request.Body;
@@ -168,7 +177,7 @@ public class PublicationService(BoeshiriDbContext db, IAuditLogger audit, IFileS
         // borrado remoto falla solo sobra un objeto en el bucket. Al revés se
         // perdería el archivo con la edición aún sin confirmar.
         foreach (var url in eliminadas)
-            await storage.DeleteAsync(url, ct);
+            await ArchivosGuard.BorrarSiSinUsoAsync(db, storage, url, ct);
     }
 
     public async Task ChangeStatusAsync(Guid id, StatusAction action, Guid userId, bool canModerate, CancellationToken ct = default)
