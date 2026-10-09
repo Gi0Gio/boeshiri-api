@@ -21,6 +21,10 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // Add services to the container.
 
+// Compresión (JSON y SVG/HTML). HTTPS incluido: las respuestas no mezclan secretos
+// con texto controlado por el atacante en el mismo cuerpo (BREACH).
+builder.Services.AddResponseCompression(o => o.EnableForHttps = true);
+
 builder.Services.AddControllers()
     // Enums en JSON como texto (p. ej. "Aceptar"/"Rechazar", estados...).
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -34,13 +38,20 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
             .Where(e => e.Value?.Errors.Count > 0)
             .Select(e => e.Key)
             // Normaliza claves internas del binder ("$", "request.", "$.") a nombres de campo.
-            .Select(k => k.StartsWith("$.", StringComparison.Ordinal) ? k[2..]
-                : k.StartsWith("request.", StringComparison.Ordinal) ? k["request.".Length..]
-                : k)
+            .Select(NombreCampo)
             .Where(k => !string.IsNullOrEmpty(k) && k != "$" && k != "request")
             .Distinct(StringComparer.OrdinalIgnoreCase));
 
-        var problem = new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(context.ModelState)
+        // El mapa `errors` traía los mensajes del framework en inglés («The Title
+        // field is required.», «The JSON value could not be converted…»).
+        var errores = context.ModelState
+            .Where(e => e.Value?.Errors.Count > 0)
+            .GroupBy(e => NombreCampo(e.Key))
+            .ToDictionary(
+                g => string.IsNullOrEmpty(g.Key) ? "general" : g.Key,
+                g => g.SelectMany(e => e.Value!.Errors).Select(MensajesValidacion.Traducir).Distinct().ToArray());
+
+        var problem = new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(errores)
         {
             Status = 400,
             Title = "Datos inválidos",
@@ -53,6 +64,12 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
             ContentTypes = { "application/problem+json" },
         };
     };
+
+    static string NombreCampo(string k) =>
+        k.StartsWith("$.", StringComparison.Ordinal) ? k[2..]
+        : k.StartsWith("request.", StringComparison.Ordinal) ? k["request.".Length..]
+        : k is "$" or "request" ? ""
+        : k;
 });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -179,6 +196,7 @@ if (args.Contains("--seed-only"))
     return;
 
 // Configure the HTTP request pipeline.
+app.UseResponseCompression();
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
 

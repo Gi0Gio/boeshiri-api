@@ -22,4 +22,8 @@ COPY --from=build /app .
 # Railway inyecta PORT; Program.cs enlaza a 0.0.0.0:$PORT.
 # EXPOSE es informativo; el puerto real lo define Railway en runtime.
 EXPOSE 8080
+
+# Sin root: si alguien lograra ejecutar código en la API, no tendría el
+# contenedor entero. La imagen de aspnet ya trae el usuario «app» ($APP_UID).
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Boeshiri.Api.dll"]

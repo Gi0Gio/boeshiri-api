@@ -76,7 +76,7 @@ public class AuthService(
         {
             User = user,
             UserId = user.Id,
-            Token = token,
+            Token = Tokens.Hash(token),
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.Add(TokenLifetime),
             Used = false
@@ -145,7 +145,7 @@ public class AuthService(
         db.VerificationTokens.Add(new VerificationToken
         {
             UserId = user.Id,
-            Token = token,
+            Token = Tokens.Hash(token),
             CreatedAt = ahora,
             ExpiresAt = ahora.Add(TokenLifetime),
             Used = false
@@ -156,7 +156,7 @@ public class AuthService(
         logger.LogInformation("Enlace de verificación reenviado a {Email}", Privacidad.OcultarCorreo(normalizado));
     }
 
-    private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+    private static string NewToken() => Tokens.Nuevo();
 
     private Task SendVerificationEmailAsync(User user, string token, CancellationToken ct)
     {
@@ -171,9 +171,17 @@ public class AuthService(
 
     public async Task VerifyEmailAsync(string token, CancellationToken ct = default)
     {
+        // Se busca por hash; los enlaces emitidos antes de guardar hashes (en claro)
+        // siguen valiendo hasta que caduquen, a las 24 horas.
+        var hash = Tokens.Hash(token);
         var verification = await db.VerificationTokens
             .Include(v => v.User)
-            .FirstOrDefaultAsync(v => v.Token == token, ct);
+            .FirstOrDefaultAsync(v => v.Token == hash || v.Token == token, ct);
+
+        // Abrir dos veces el mismo enlace (o que el antivirus del correo lo abra
+        // antes) no es un error: si la cuenta ya está verificada, todo bien.
+        if (verification is not null && verification.User.EmailVerified)
+            return;
 
         if (verification is null || verification.Used || verification.ExpiresAt < DateTime.UtcNow)
             throw AppException.BadRequest("Enlace de verificación inválido o expirado.");
@@ -370,8 +378,7 @@ public class AuthService(
     private static bool EstadoBloqueado(User user) =>
         user.Status is MemberStatus.Suspended or MemberStatus.Expelled or MemberStatus.Retired;
 
-    private static string HashToken(string token) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    private static string HashToken(string token) => Tokens.Hash(token);
 
     private static AppException SesionExpirada() =>
         AppException.Unauthorized("Tu sesión expiró. Inicia sesión de nuevo.");

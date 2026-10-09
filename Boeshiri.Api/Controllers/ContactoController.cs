@@ -73,7 +73,8 @@ public class ContactoController(
              <p style="color:#666;font-size:12px">Responde directamente a {correo}.</p>
              """,
             $"{request.Name} <{request.Email}> escribió:\n\n{request.Message}\n\n--\nResponde a {request.Email}",
-            ct);
+            ct,
+            replyTo: request.Email.Trim());
 
         logger.LogInformation("Mensaje de contacto de {Email} enviado", Boeshiri.Infrastructure.Common.Privacidad.OcultarCorreo(request.Email));
         return Ok(new { mensaje = "Mensaje enviado. Te responderemos pronto." });

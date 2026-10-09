@@ -363,7 +363,7 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.Property(x => x.ContentType).HasMaxLength(120);
             e.HasIndex(x => new { x.Library, x.AccessLevel });
             e.HasIndex(x => x.AuthorId);
-            e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── FinancialMovement ────────────────────────────────────
@@ -385,7 +385,7 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.Property(x => x.Category).HasMaxLength(80).IsRequired();
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.HasIndex(x => x.Status);
-            e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

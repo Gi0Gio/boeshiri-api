@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Admin;
 using Boeshiri.Application.Common;
 using Boeshiri.Domain.Entities;
@@ -69,7 +70,8 @@ public class PostulantesServiceTests : IDisposable
         var nuevo = await check.VerificationTokens.SingleAsync(t => !t.Used);
 
         Assert.True(viejo.Used);                        // el repartido antes deja de servir
-        Assert.Contains(nuevo.Token, dto.Link);
+        var enlace = dto.Link[(dto.Link.IndexOf("token=", StringComparison.Ordinal) + "token=".Length)..];
+        Assert.Equal(Tokens.Hash(enlace), nuevo.Token);
         Assert.Contains("/verificar?token=", dto.Link);
         // Entregar el enlace es entregar una credencial: tiene que quedar rastro.
         Assert.Equal(1, await check.AuditEntries.CountAsync(a => a.Action == "verificacion.enlace_emitido" && a.ActorId == actor));

@@ -54,7 +54,8 @@ public static class DependencyInjection
 
         services.AddDbContext<BoeshiriDbContext>(options =>
             options
-                .UseNpgsql(connectionString)
+                // Reintenta los cortes transitorios (Railway reinicia la base a veces).
+                .UseNpgsql(connectionString, o => o.EnableRetryOnFailure(3))
                 .UseSnakeCaseNamingConvention());
 
         // ── Opciones fuertemente tipadas ─────────────────────────

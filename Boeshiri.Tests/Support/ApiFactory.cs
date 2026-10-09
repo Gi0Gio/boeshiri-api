@@ -1,3 +1,4 @@
+using Boeshiri.Application.Abstractions;
 using System.Net.Http.Headers;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
@@ -55,8 +56,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<BoeshiriDbContext>>();
             services.RemoveAll(typeof(IDbContextOptionsConfiguration<BoeshiriDbContext>));
             services.AddDbContext<BoeshiriDbContext>(o => o.UseSqlite(_connection));
+
+            // Nada sale por correo en los tests; lo enviado queda a la vista.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Correos);
         });
     }
+
+    /// <summary>Correos que la API habría enviado.</summary>
+    public FakeEmailSender Correos { get; } = new();
 
     protected override IHost CreateHost(IHostBuilder builder)
     {

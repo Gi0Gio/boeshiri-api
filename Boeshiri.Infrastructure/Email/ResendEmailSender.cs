@@ -21,7 +21,7 @@ public class ResendEmailSender(
 {
     private readonly ResendOptions _options = options.Value;
 
-    public async Task SendAsync(string to, string subject, string htmlBody, string? textBody = null, CancellationToken ct = default)
+    public async Task SendAsync(string to, string subject, string htmlBody, string? textBody = null, CancellationToken ct = default, string? replyTo = null)
     {
         var message = new EmailMessage
         {
@@ -31,6 +31,8 @@ public class ResendEmailSender(
             HtmlBody = htmlBody,
             TextBody = textBody
         };
+        if (!string.IsNullOrWhiteSpace(replyTo))
+            message.ReplyTo = replyTo;
 
         try
         {

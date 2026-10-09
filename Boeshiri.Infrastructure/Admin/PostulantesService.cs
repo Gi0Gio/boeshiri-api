@@ -45,11 +45,11 @@ public class PostulantesService(
         foreach (var t in previos) t.Used = true;
 
         var ahora = DateTime.UtcNow;
-        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var token = Tokens.Nuevo();
         db.VerificationTokens.Add(new VerificationToken
         {
             UserId = user.Id,
-            Token = token,
+            Token = Tokens.Hash(token),
             CreatedAt = ahora,
             ExpiresAt = ahora.Add(TokenLifetime),
             Used = false

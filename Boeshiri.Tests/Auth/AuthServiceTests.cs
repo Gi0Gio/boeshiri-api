@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Auth;
 using Boeshiri.Application.Common;
 using Boeshiri.Domain.Entities;
@@ -62,7 +63,9 @@ public class AuthServiceTests : IDisposable
 
         // El enlace apunta al FRONT (/verificar), no al endpoint de la API: quien lo
         // abre debe aterrizar en una página de la marca, no en el JSON del endpoint.
-        var token = verify.VerificationTokens.Single().Token;
+        // En la base va el hash; en el correo, el token.
+        var token = TokenDe(_email.Sent[0].Text!);
+        Assert.Equal(Tokens.Hash(token), verify.VerificationTokens.Single().Token);
         Assert.Contains($"/verificar?token={token}", _email.Sent[0].Body);
         Assert.DoesNotContain("/auth/verificar", _email.Sent[0].Body);
 
@@ -356,11 +359,43 @@ public class AuthServiceTests : IDisposable
 
     // ── Contraseña ───────────────────────────────────────────────
 
-    private string TokenDelUltimoCorreo()
+    private string TokenDelUltimoCorreo() => TokenDe(_email.Sent[^1].Text!);
+
+    private static string TokenDe(string texto)
     {
-        var texto = _email.Sent[^1].Text!;
         var i = texto.IndexOf("token=", StringComparison.Ordinal) + "token=".Length;
         return new string(texto[i..].TakeWhile(char.IsLetterOrDigit).ToArray());
+    }
+
+    [Fact]
+    public async Task Verificar_DosVecesElMismoEnlace_NoFalla()
+    {
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RegisterAsync(Reg("dosveces@ex.com"));
+        var token = TokenDe(_email.Sent[^1].Text!);
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).VerifyEmailAsync(token);
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).VerifyEmailAsync(token);
+    }
+
+    [Fact]
+    public async Task Verificar_EnlaceAntiguoEnClaro_SigueValiendo()
+    {
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+        {
+            var u = new User { Email = "legado@ex.com", PasswordHash = "x", FullName = "L", Status = MemberStatus.Applicant };
+            ctx.Users.Add(u);
+            ctx.VerificationTokens.Add(new VerificationToken { UserId = u.Id, Token = "ENCLARO123", CreatedAt = DateTime.UtcNow, ExpiresAt = DateTime.UtcNow.AddHours(1) });
+            await ctx.SaveChangesAsync();
+            id = u.Id;
+        }
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).VerifyEmailAsync("ENCLARO123");
+        await using var check = _db.CreateContext();
+        Assert.True((await check.Users.FindAsync(id))!.EmailVerified);
     }
 
     private async Task<SessionResult> Login(string email, string clave)
@@ -561,7 +596,7 @@ public class AuthServiceTests : IDisposable
         Assert.True(tokens[0].Used);    // el anterior queda anulado
         Assert.False(tokens[1].Used);   // solo vale el nuevo
         Assert.Equal(2, _email.Sent.Count);
-        Assert.Contains(tokens[1].Token, _email.Sent[1].Body);
+        Assert.Equal(tokens[1].Token, Tokens.Hash(TokenDe(_email.Sent[1].Text!)));
     }
 
     [Fact]

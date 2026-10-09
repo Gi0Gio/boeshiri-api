@@ -170,41 +170,48 @@ public class ShoutService(
 
     public async Task JoinAsync(Guid id, Guid userId, CancellationToken ct = default)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // Con reintentos activados, una transacción propia tiene que ir dentro de la
+        // estrategia de ejecución: si se corta, se repite el bloque entero.
+        var estrategia = db.Database.CreateExecutionStrategy();
+        await estrategia.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        // Bloquea la fila del grito hasta el commit. Sin esto, dos personas que tocan
-        // «me apunto» a la vez sobre la última plaza cuentan ambas un cupo libre y
-        // entran las dos: el número de la pieza roja pasaría a mentir.
-        // En SQLite (tests) no hay FOR UPDATE, pero su escritura ya es exclusiva.
-        if (db.Database.IsNpgsql())
-            await db.Database.ExecuteSqlAsync($"SELECT 1 FROM shouts WHERE id = {id} FOR UPDATE", ct);
+            // Bloquea la fila del grito hasta el commit. Sin esto, dos personas que tocan
+            // «me apunto» a la vez sobre la última plaza cuentan ambas un cupo libre y
+            // entran las dos: el número de la pieza roja pasaría a mentir.
+            // En SQLite (tests) no hay FOR UPDATE, pero su escritura ya es exclusiva.
+            if (db.Database.IsNpgsql())
+                await db.Database.ExecuteSqlAsync($"SELECT 1 FROM shouts WHERE id = {id} FOR UPDATE", ct);
 
-        var s = await db.Shouts
-            .Include(x => x.Joins)
-            .FirstOrDefaultAsync(x => x.Id == id, ct)
-            ?? throw AppException.NotFound("El grito no está disponible.");
+            var s = await db.Shouts
+                .Include(x => x.Joins)
+                .FirstOrDefaultAsync(x => x.Id == id, ct)
+                ?? throw AppException.NotFound("El grito no está disponible.");
 
-        EnsureLive(s);
+            EnsureLive(s);
 
-        if (s.Joins.Any(j => j.UserId == userId))
-            throw AppException.Conflict("Ya estás apuntado a este grito.");
+            if (s.Joins.Any(j => j.UserId == userId))
+                throw AppException.Conflict("Ya estás apuntado a este grito.");
 
-        if (s.Joins.Count >= s.Slots)
-            throw AppException.Conflict("Ya no quedan cupos en este grito.");
+            if (s.Joins.Count >= s.Slots)
+                throw AppException.Conflict("Ya no quedan cupos en este grito.");
 
-        var quien = await db.Users.Where(u => u.Id == userId).Select(u => u.FullName).FirstOrDefaultAsync(ct)
-            ?? throw AppException.Unauthorized("Usuario no encontrado.");
+            var quien = await db.Users.Where(u => u.Id == userId).Select(u => u.FullName).FirstOrDefaultAsync(ct)
+                ?? throw AppException.Unauthorized("Usuario no encontrado.");
 
-        s.Joins.Add(new ShoutJoin { ShoutId = s.Id, UserId = userId });
+            s.Joins.Add(new ShoutJoin { ShoutId = s.Id, UserId = userId });
 
-        var quedan = s.Slots - s.Joins.Count;
-        notifications.Notify(s.AuthorId, "grito.apuntado",
-            quedan == 0
-                ? $"{quien} se apuntó a «{s.Title}». Ya se llenó."
-                : $"{quien} se apuntó a «{s.Title}». Quedan {quedan}.");
+            var quedan = s.Slots - s.Joins.Count;
+            notifications.Notify(s.AuthorId, "grito.apuntado",
+                quedan == 0
+                    ? $"{quien} se apuntó a «{s.Title}». Ya se llenó."
+                    : $"{quien} se apuntó a «{s.Title}». Quedan {quedan}.");
 
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        });
     }
 
     public async Task LeaveAsync(Guid id, Guid userId, CancellationToken ct = default)
