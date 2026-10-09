@@ -32,6 +32,44 @@ dotnet run --project Boeshiri.Api    # escucha en http://localhost:8080
 Las migraciones y la semilla del RBAC se aplican solas al arrancar. Para hacerlo
 sin levantar el servidor: `dotnet run --project Boeshiri.Api -- --seed-only`.
 
+### Entorno de pruebas local (API + web en tu equipo)
+
+```bash
+dotnet run --project Boeshiri.Api --launch-profile local   # API en http://localhost:8080
+# en boeshiri-web:
+npm run dev:local                                           # web en http://localhost:5173
+```
+
+El perfil `local` usa `ASPNETCORE_ENVIRONMENT=Local` (`appsettings.Local.json`). En ese
+entorno .NET **no carga los user-secrets**, así que no toca producción aunque estén puestos:
+base = Postgres de este equipo, correo = log de la consola (ahí salen los enlaces de
+verificación y recuperación), subida de archivos deshabilitada. Comprueba en el log
+`Hosting environment: Local` y `Emisor de correo activo: LoggingEmailSender`.
+
+Al arrancar crea estas cuentas (contraseña `boeshiri-local`):
+
+| Correo | Perfil |
+|---|---|
+| `super@local.test` | Super Administrador |
+| `junta@local.test` | Junta Directiva |
+| `tesorero@local.test` | Tesorero |
+| `miembro@local.test` | Miembro activo |
+| `postulante@local.test` | Postulante (ve «Tu solicitud está en revisión») |
+
+### API local contra la base de producción (`local-nube`)
+
+```bash
+dotnet run --project Boeshiri.Api --launch-profile local-nube   # API en http://localhost:8080
+# en boeshiri-web:
+npm run dev:local
+```
+
+`ASPNETCORE_ENVIRONMENT=LocalNube` (`appsettings.LocalNube.json`). De los user-secrets toma
+**solo** `ConnectionStrings:Default` (la base de Railway); R2 y Resend no se cargan, así que el
+correo sale en la consola y la subida de archivos está deshabilitada. No migra ni siembra al
+arrancar. **Los datos son los reales:** lo que crees aquí lo ven los miembros. Las cuentas
+de prueba de `local` no existen en esta base; entra con tu cuenta real.
+
 ### Secretos en local
 
 Nunca en el repo: van en *user-secrets* (`dotnet user-secrets set "Clave" "valor" --project Boeshiri.Api`).

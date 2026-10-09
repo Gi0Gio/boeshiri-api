@@ -13,6 +13,15 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// LocalNube: API local contra la base de Railway. De los user-secrets se toma solo la
+// cadena de conexión; cargarlos enteros traería también R2 y Resend reales.
+if (builder.Environment.IsEnvironment("LocalNube"))
+{
+    var secretos = new ConfigurationBuilder().AddUserSecrets<Program>().Build();
+    builder.Configuration["ConnectionStrings:Default"] = secretos.GetConnectionString("Default")
+        ?? throw new InvalidOperationException("LocalNube necesita ConnectionStrings:Default en los user-secrets.");
+}
+
 // Railway inyecta la variable de entorno PORT. Kestrel enlaza por defecto a
 // localhost, que en el contenedor no recibe tráfico: hay que enlazar a 0.0.0.0.
 // En local, si PORT no está definido, usa 8080.
@@ -170,7 +179,7 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
     var host = new Npgsql.NpgsqlConnectionStringBuilder(db.Database.GetConnectionString()).Host ?? "";
     var esLocal = host is "localhost" or "127.0.0.1" or "::1" or "postgres" or "host.docker.internal";
 
-    if (app.Environment.IsDevelopment() && !esLocal && !app.Configuration.GetValue("Database:AllowRemoteMigrations", false))
+    if (!app.Environment.IsProduction() && !esLocal && !app.Configuration.GetValue("Database:AllowRemoteMigrations", false))
     {
         app.Logger.LogWarning(
             "Base remota ({Host}) en Development: no se aplican migraciones ni semilla al arrancar. " +
@@ -180,6 +189,10 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
     {
         await db.Database.MigrateAsync();
         await DatabaseSeeder.SeedAsync(db);
+
+        // Cuentas de prueba: solo el entorno Local lo activa, y nunca contra una base remota.
+        if (esLocal && app.Configuration.GetValue("Database:SeedDevUsers", false))
+            await DevUsersSeeder.SeedAsync(db);
     }
 }
 
@@ -189,6 +202,8 @@ using (var scope = app.Services.CreateScope())
 {
     var sender = scope.ServiceProvider.GetRequiredService<Boeshiri.Application.Abstractions.IEmailSender>();
     app.Logger.LogInformation("Emisor de correo activo: {Sender}", sender.GetType().Name);
+    var storage = scope.ServiceProvider.GetRequiredService<Boeshiri.Application.Abstractions.IFileStorage>();
+    app.Logger.LogInformation("Almacenamiento de archivos activo: {Storage}", storage.GetType().Name);
 }
 
 // "dotnet run -- --seed-only": migra y siembra, luego termina sin levantar el servidor.
@@ -199,6 +214,9 @@ if (args.Contains("--seed-only"))
 app.UseResponseCompression();
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
+
+if (app.Environment.IsEnvironment("Local"))
+    app.MapOpenApi();
 
 if (app.Environment.IsDevelopment())
 {
