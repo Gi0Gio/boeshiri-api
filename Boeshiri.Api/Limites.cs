@@ -17,17 +17,30 @@ public static class Limites
     public const string Tarjetas = "tarjetas";
 
     /// <summary>
-    /// IP del cliente. Login, renovación y compartir llegan por el proxy de Netlify,
-    /// que deja la IP real en x-nf-client-connection-ip; el resto llega por el borde
-    /// de Railway, cuya X-Forwarded-For ya resolvió UseForwardedHeaders. La cabecera
-    /// de Netlify se podría falsear llamando a Railway directamente, pero entonces
-    /// sigue frenando el límite por cuenta de LoginThrottle.
+    /// Rutas que el sitio llama a través del proxy de Netlify (public/_redirects).
+    /// Solo en ellas la IP real viene en x-nf-client-connection-ip.
+    /// </summary>
+    private static readonly string[] RutasPorNetlify =
+        ["/auth/login", "/auth/renovar", "/auth/salir", "/auth/cambiar-contrasena", "/compartir/"];
+
+    /// <summary>
+    /// IP del cliente. En las rutas que pasan por el proxy de Netlify se toma de
+    /// x-nf-client-connection-ip (si no, todas las personas compartirían el cupo de
+    /// la IP de Netlify). En el resto se ignora esa cabecera: llegan por el borde de
+    /// Railway, cuya X-Forwarded-For ya resolvió UseForwardedHeaders, y aceptarla
+    /// ahí dejaría saltarse el límite inventando una IP distinta en cada intento.
+    /// En las rutas de Netlify ese riesgo sigue (se podría llamar a Railway directo
+    /// con la cabecera falsa); el login lo cubre además el freno por cuenta.
     /// </summary>
     public static string IpCliente(HttpContext c)
     {
-        var netlify = c.Request.Headers["x-nf-client-connection-ip"].ToString();
-        if (IPAddress.TryParse(netlify, out var ip))
-            return ip.ToString();
+        var ruta = c.Request.Path.Value ?? "";
+        if (RutasPorNetlify.Any(r => ruta.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+        {
+            var netlify = c.Request.Headers["x-nf-client-connection-ip"].ToString();
+            if (IPAddress.TryParse(netlify, out var ip))
+                return ip.ToString();
+        }
         return c.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
     }
 

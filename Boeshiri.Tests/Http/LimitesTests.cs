@@ -15,6 +15,8 @@ public class LimitesTests : IClassFixture<ApiFactory>
     {
         var c = _api.CreateClient();
         c.DefaultRequestHeaders.Add("x-nf-client-connection-ip", ip);
+        // Lo que añade el borde de Railway en las rutas que llegan directo.
+        c.DefaultRequestHeaders.Add("X-Forwarded-For", ip);
         return c;
     }
 
@@ -52,6 +54,23 @@ public class LimitesTests : IClassFixture<ApiFactory>
         {
             var r = await c.PostAsJsonAsync("/auth/login", new { email = $"x{i}@ex.com", password = "x" });
             ultimo = r.StatusCode;
+        }
+        Assert.Equal(HttpStatusCode.TooManyRequests, ultimo);
+    }
+
+    [Fact]
+    public async Task FueraDeLasRutasDeNetlify_LaCabeceraNoAbreCupoNuevo()
+    {
+        // Contacto no pasa por Netlify: inventar una IP distinta en cada intento no
+        // tiene que servir para saltarse el límite.
+        var msg = new { name = "Ana", email = "ana@ex.com", message = "Hola" };
+        HttpStatusCode ultimo = HttpStatusCode.OK;
+        for (var i = 0; i < 4; i++)
+        {
+            var c = _api.CreateClient();
+            c.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.99");
+            c.DefaultRequestHeaders.Add("x-nf-client-connection-ip", $"203.0.113.{100 + i}");
+            ultimo = (await c.PostAsJsonAsync("/contacto", msg)).StatusCode;
         }
         Assert.Equal(HttpStatusCode.TooManyRequests, ultimo);
     }

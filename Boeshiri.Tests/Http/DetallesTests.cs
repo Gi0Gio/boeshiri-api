@@ -11,7 +11,7 @@ public class DetallesTests(ApiFactory api) : IClassFixture<ApiFactory>
     private HttpClient Cliente(string ip)
     {
         var c = api.CreateClient();
-        c.DefaultRequestHeaders.Add("x-nf-client-connection-ip", ip);
+        c.DefaultRequestHeaders.Add("X-Forwarded-For", ip);
         return c;
     }
 
