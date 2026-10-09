@@ -42,6 +42,33 @@ public record LoginRequest
     public required string Password { get; init; }
 }
 
+/// <summary>Cambio de contraseña con sesión iniciada.</summary>
+public record ChangePasswordRequest
+{
+    [Required]
+    public required string CurrentPassword { get; init; }
+
+    [Required, MinLength(8), MaxLength(128)]
+    public required string NewPassword { get; init; }
+}
+
+/// <summary>Pedido de enlace para restablecer la contraseña.</summary>
+public record ForgotPasswordRequest
+{
+    [Required, EmailAddress, MaxLength(320)]
+    public required string Email { get; init; }
+}
+
+/// <summary>Nueva contraseña con el token del enlace.</summary>
+public record ResetPasswordRequest
+{
+    [Required, MaxLength(128)]
+    public required string Token { get; init; }
+
+    [Required, MinLength(8), MaxLength(128)]
+    public required string NewPassword { get; init; }
+}
+
 /// <summary>Resultado del registro.</summary>
 public record RegisterResult(Guid UserId, string Message);
 

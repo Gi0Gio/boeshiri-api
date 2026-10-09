@@ -135,6 +135,43 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
         IsEssential = true
     };
 
+    /// <summary>
+    /// Cambia la contraseña. Va por el proxy de Netlify como el login: cierra todas
+    /// las sesiones y deja la cookie nueva en este dispositivo.
+    /// </summary>
+    [Authorize]
+    [EnableRateLimiting(Limites.Auth)]
+    [HttpPost("cambiar-contrasena")]
+    public async Task<ActionResult<AuthResult>> ChangePassword(ChangePasswordRequest request, CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(sub, out var userId))
+            return Unauthorized();
+
+        var session = await authService.ChangePasswordAsync(userId, request, ct);
+        SetSessionCookie(session);
+        return Ok(session.Auth);
+    }
+
+    /// <summary>Pide el enlace para restablecer la contraseña. Misma respuesta exista o no la cuenta.</summary>
+    [EnableRateLimiting(Limites.Auth)]
+    [HttpPost("recuperar")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken ct)
+    {
+        await authService.RequestPasswordResetAsync(request.Email, ct);
+        return Ok(new { mensaje = "Si esa dirección tiene una cuenta, te enviamos un enlace para elegir una contraseña nueva. Revisa tu correo." });
+    }
+
+    /// <summary>Fija la contraseña nueva con el token del enlace.</summary>
+    [EnableRateLimiting(Limites.Auth)]
+    [HttpPost("restablecer")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken ct)
+    {
+        await authService.ResetPasswordAsync(request, ct);
+        Response.Cookies.Delete(SessionCookie, SessionCookieOptions(expires: null));
+        return Ok(new { mensaje = "Contraseña actualizada. Ya puedes iniciar sesión con la nueva." });
+    }
+
     /// <summary>Estado de la sesión y de la solicitud del usuario actual (RF-PUB-16).</summary>
     [Authorize]
     [HttpGet("yo")]

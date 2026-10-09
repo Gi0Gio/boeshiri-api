@@ -264,6 +264,12 @@ public class AuthService(
         if (stored is null || stored.ExpiresAt <= ahora)
             throw SesionExpirada();
 
+        // Revocado sin sustituto = se cerró la sesión (salir, cambio de contraseña,
+        // suspensión). Se rechaza y ya: no es un robo. Tratarlo como reuso cerraba
+        // también la sesión nueva cada vez que una pestaña vieja intentaba renovar.
+        if (stored.RevokedAt is not null && stored.ReplacedById is null)
+            throw SesionExpirada();
+
         if (stored.RevokedAt is not null && !EnGracia(stored, ahora))
         {
             // Un token rotado hace rato solo lo tiene quien lo copió: el navegador
@@ -400,6 +406,106 @@ public class AuthService(
             .FirstOrDefaultAsync(predicate, ct);
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+
+    // ── Contraseña ───────────────────────────────────────────────
+
+    private static readonly TimeSpan ResetLifetime = TimeSpan.FromHours(1);
+
+    public async Task<SessionResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        var user = await LoadWithRolesAsync(u => u.Id == userId, ct)
+            ?? throw AppException.Unauthorized("Usuario no encontrado.");
+
+        // Comparte el freno del login: si no, este endpoint serviría para probar
+        // contraseñas de una sesión robada sin límite.
+        if (throttle.Bloqueada(user.Email))
+            throw AppException.TooManyRequests("Demasiados intentos fallidos. Espera 15 minutos.");
+
+        if (passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
+        {
+            throttle.RegistrarFallo(user.Email);
+            throw AppException.BadRequest("La contraseña actual no es correcta.");
+        }
+
+        if (request.CurrentPassword == request.NewPassword)
+            throw AppException.BadRequest("La contraseña nueva tiene que ser distinta de la actual.");
+
+        user.PasswordHash = passwordHasher.HashPassword(user, request.NewPassword);
+        var ahora = DateTime.UtcNow;
+        await RevokeAllAsync(user.Id, ahora, ct);
+
+        var (refreshToken, refresh) = NewRefreshToken(user.Id, ahora);
+        db.RefreshTokens.Add(refresh);
+        await db.SaveChangesAsync(ct);
+
+        logger.LogInformation("Contraseña cambiada: {Email}", Privacidad.OcultarCorreo(user.Email));
+        return new SessionResult(BuildAuthResult(user), refreshToken, refresh.ExpiresAt);
+    }
+
+    public async Task RequestPasswordResetAsync(string email, CancellationToken ct = default)
+    {
+        var normalizado = Normalize(email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == normalizado, ct);
+
+        // Salidas en silencio, como el reenvío de verificación: responder distinto
+        // delataría quién tiene cuenta.
+        if (user is null || !user.EmailVerified || EstadoBloqueado(user))
+        {
+            logger.LogInformation("Recuperación pedida sin cuenta utilizable: {Email}", Privacidad.OcultarCorreo(normalizado));
+            return;
+        }
+
+        var ahora = DateTime.UtcNow;
+        var reciente = await db.PasswordResetTokens
+            .AnyAsync(t => t.UserId == user.Id && t.UsedAt == null && t.CreatedAt > ahora - ResendCooldown, ct);
+        if (reciente)
+            return;
+
+        // Un solo enlace vivo: los anteriores dejan de servir.
+        await db.PasswordResetTokens
+            .Where(t => t.UserId == user.Id && t.UsedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedAt, ahora), ct);
+
+        var token = NewToken();
+        db.PasswordResetTokens.Add(new PasswordResetToken
+        {
+            UserId = user.Id,
+            TokenHash = HashToken(token),
+            CreatedAt = ahora,
+            ExpiresAt = ahora.Add(ResetLifetime),
+        });
+        await db.SaveChangesAsync(ct);
+
+        var link = $"{_app.PublicBaseUrl.TrimEnd('/')}/restablecer?token={token}";
+        await emailSender.SendAsync(
+            user.Email,
+            "Restablece tu contraseña — Boesh Irí",
+            EmailTemplates.PasswordResetHtml(user.FullName, link),
+            EmailTemplates.PasswordResetText(user.FullName, link),
+            ct);
+        logger.LogInformation("Enlace de recuperación enviado: {Email}", Privacidad.OcultarCorreo(user.Email));
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
+    {
+        var hash = HashToken(request.Token);
+        var ahora = DateTime.UtcNow;
+        var reset = await db.PasswordResetTokens
+            .Include(t => t.User)
+            .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
+
+        if (reset is null || reset.UsedAt is not null || reset.ExpiresAt <= ahora || EstadoBloqueado(reset.User))
+            throw AppException.BadRequest("El enlace no es válido o ya venció. Pide uno nuevo.");
+
+        reset.UsedAt = ahora;
+        reset.User.PasswordHash = passwordHasher.HashPassword(reset.User, request.NewPassword);
+        await RevokeAllAsync(reset.UserId, ahora, ct);
+        await db.SaveChangesAsync(ct);
+
+        // Quien recupera la cuenta no tiene por qué esperar al freno de intentos.
+        throttle.Limpiar(reset.User.Email);
+        logger.LogInformation("Contraseña restablecida: {Email}", Privacidad.OcultarCorreo(reset.User.Email));
+    }
 
     private static readonly User UsuarioDeRelleno = new() { Email = "relleno@invalido", PasswordHash = "", FullName = "relleno" };
     private static readonly string HashDeRelleno = new PasswordHasher<User>().HashPassword(UsuarioDeRelleno, Guid.NewGuid().ToString());

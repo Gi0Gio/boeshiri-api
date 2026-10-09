@@ -95,6 +95,65 @@ public static class EmailTemplates
         a Boesh Irí. Si no fuiste tú, puedes ignorarlo sin más.
         """;
 
+    /// <summary>Correo para restablecer la contraseña.</summary>
+    public static string PasswordResetHtml(string fullName, string resetUrl)
+    {
+        var nombre = WebUtility.HtmlEncode(PrimerNombre(fullName));
+        var url = WebUtility.HtmlEncode(resetUrl);
+
+        return Shell(
+            preheader: "Usa este enlace para elegir una contraseña nueva en Boesh Irí.",
+            contenido: $"""
+                <h1 style="margin:0;font-family:{FontDisplay};font-size:28px;line-height:1.2;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:{Cream};">
+                  Restablece tu contraseña
+                </h1>
+
+                <p style="margin:20px 0 0;font-family:{FontBody};font-size:16px;line-height:1.65;color:{Tea};">
+                  Hola <strong style="color:{Cream};">{nombre}</strong>, alguien pidió restablecer la contraseña de tu cuenta.
+                  Si fuiste tú, elige una nueva con este botón.
+                </p>
+
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0 0;">
+                  <tr>
+                    <td align="center" bgcolor="{Caribbean}" style="border-radius:999px;">
+                      <a href="{url}" style="display:inline-block;padding:16px 38px;font-family:{FontDisplay};font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:{Jungle};text-decoration:none;border-radius:999px;">
+                        Elegir contraseña nueva
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:30px 0 0;font-family:{FontBody};font-size:13px;line-height:1.6;color:#8fae86;">
+                  ¿El botón no funciona? Copia y pega este enlace en tu navegador:
+                </p>
+                <p style="margin:8px 0 0;font-family:{FontMono};font-size:12px;line-height:1.5;color:{Caribbean};word-break:break-all;">
+                  {url}
+                </p>
+
+                <p style="margin:28px 0 0;font-family:{FontBody};font-size:13px;line-height:1.6;color:{Tea};">
+                  El enlace sirve una sola vez y caduca en <strong style="color:{Cream};">1 hora</strong>.
+                  Al cambiar la contraseña se cierran todas tus sesiones abiertas.
+                </p>
+                """,
+            pie: "Si no pediste esto, ignora el correo: tu contraseña no cambia mientras nadie use el enlace.");
+    }
+
+    public static string PasswordResetText(string fullName, string resetUrl) =>
+        $"""
+        BOESH IRÍ — Colectivo cultural · Chiriquí, Panamá
+
+        Hola {PrimerNombre(fullName)}, alguien pidió restablecer la contraseña de tu cuenta.
+
+        Si fuiste tú, elige una nueva abriendo este enlace:
+        {resetUrl}
+
+        El enlace sirve una sola vez y caduca en 1 hora. Al cambiar la contraseña
+        se cierran todas tus sesiones abiertas.
+
+        Si no pediste esto, ignora el correo: tu contraseña no cambia mientras
+        nadie use el enlace.
+        """;
+
     /// <summary>
     /// Marco común: fondo, tarjeta, membrete y pie. El contenido llega ya maquetado.
     /// </summary>

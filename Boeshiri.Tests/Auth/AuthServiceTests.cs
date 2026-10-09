@@ -354,6 +354,118 @@ public class AuthServiceTests : IDisposable
         Assert.Equal(429, ex.StatusCode);
     }
 
+    // ── Contraseña ───────────────────────────────────────────────
+
+    private string TokenDelUltimoCorreo()
+    {
+        var texto = _email.Sent[^1].Text!;
+        var i = texto.IndexOf("token=", StringComparison.Ordinal) + "token=".Length;
+        return new string(texto[i..].TakeWhile(char.IsLetterOrDigit).ToArray());
+    }
+
+    private async Task<SessionResult> Login(string email, string clave)
+    {
+        await using var ctx = _db.CreateContext();
+        return await NewService(ctx).LoginAsync(new LoginRequest { Email = email, Password = clave });
+    }
+
+    [Fact]
+    public async Task ChangePassword_CierraLasDemasSesionesYDejaUnaNueva()
+    {
+        var otra = await LoginActiveAsync("cp@ex.com");
+        var userId = otra.Auth.UserId;
+
+        SessionResult nueva;
+        await using (var ctx = _db.CreateContext())
+            nueva = await NewService(ctx).ChangePasswordAsync(userId, new ChangePasswordRequest { CurrentPassword = "Secreta123", NewPassword = "OtraClave456" });
+
+        Assert.NotNull(nueva.RefreshToken);
+        await using (var ctx = _db.CreateContext())
+            await Assert.ThrowsAsync<AppException>(() => NewService(ctx).RefreshAsync(otra.RefreshToken!));
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RefreshAsync(nueva.RefreshToken!);
+        await Login("cp@ex.com", "OtraClave456");
+        await Assert.ThrowsAsync<AppException>(() => Login("cp@ex.com", "Secreta123"));
+    }
+
+    [Fact]
+    public async Task ChangePassword_ClaveActualIncorrecta_400()
+    {
+        var s = await LoginActiveAsync("cp2@ex.com");
+        await using var ctx = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(ctx).ChangePasswordAsync(s.Auth.UserId, new ChangePasswordRequest { CurrentPassword = "Mala", NewPassword = "OtraClave456" }));
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task Recuperar_FlujoCompleto_CambiaLaClaveYCierraSesiones()
+    {
+        var sesion = await LoginActiveAsync("rc@ex.com");
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RequestPasswordResetAsync("RC@ex.com ");
+
+        var token = TokenDelUltimoCorreo();
+        Assert.Equal(64, token.Length);
+        await using (var ctx = _db.CreateContext())
+            Assert.False(await ctx.PasswordResetTokens.AnyAsync(t => t.TokenHash == token)); // se guarda el hash, no el token
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ResetPasswordAsync(new ResetPasswordRequest { Token = token, NewPassword = "Recuperada789" });
+
+        await Login("rc@ex.com", "Recuperada789");
+        await using (var ctx = _db.CreateContext())
+            await Assert.ThrowsAsync<AppException>(() => NewService(ctx).RefreshAsync(sesion.RefreshToken!));
+
+        // Un solo uso.
+        await using (var ctx = _db.CreateContext())
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() =>
+                NewService(ctx).ResetPasswordAsync(new ResetPasswordRequest { Token = token, NewPassword = "OtraMas000" }));
+            Assert.Equal(400, ex.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Recuperar_CorreoSinCuenta_NoEnviaNadaNiFalla()
+    {
+        await using var ctx = _db.CreateContext();
+        await NewService(ctx).RequestPasswordResetAsync("nadie@ex.com");
+        Assert.Empty(_email.Sent);
+    }
+
+    [Fact]
+    public async Task Recuperar_EnlaceVencido_400()
+    {
+        await LoginActiveAsync("ven@ex.com");
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).RequestPasswordResetAsync("ven@ex.com");
+        var token = TokenDelUltimoCorreo();
+        await using (var ctx = _db.CreateContext())
+        {
+            foreach (var t in ctx.PasswordResetTokens) t.ExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using var c2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(c2).ResetPasswordAsync(new ResetPasswordRequest { Token = token, NewPassword = "Nueva12345" }));
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task Recuperar_PedirDosVecesSeguidas_SoloEnviaUno()
+    {
+        await LoginActiveAsync("dos@ex.com");
+        var antes = _email.Sent.Count;
+        for (var i = 0; i < 2; i++)
+        {
+            await using var ctx = _db.CreateContext();
+            await NewService(ctx).RequestPasswordResetAsync("dos@ex.com");
+        }
+        Assert.Equal(antes + 1, _email.Sent.Count);
+    }
+
     private async Task<SessionResult> LoginActiveAsync(string email)
     {
         await RegisterVerifiedActiveAsync(email);

@@ -35,4 +35,17 @@ public interface IAuthService
 
     /// <summary>Devuelve el usuario actual, su estado y sus roles/permisos.</summary>
     Task<MeResult> GetMeAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Cambia la contraseña verificando la actual. Cierra todas las sesiones y abre
+    /// una nueva en este dispositivo: si alguien conocía la contraseña anterior, su
+    /// sesión deja de servir.
+    /// </summary>
+    Task<SessionResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken ct = default);
+
+    /// <summary>Envía el enlace para restablecer. Silencioso si el correo no tiene cuenta.</summary>
+    Task RequestPasswordResetAsync(string email, CancellationToken ct = default);
+
+    /// <summary>Fija la contraseña nueva con el token del enlace y cierra todas las sesiones.</summary>
+    Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default);
 }
