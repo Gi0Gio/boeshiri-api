@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Finance;
@@ -14,6 +15,7 @@ public class FinanceService(BoeshiriDbContext db, IAuditLogger audit) : IFinance
     public async Task<FinanceSummaryDto> GetSummaryAsync(CancellationToken ct = default)
     {
         var movements = await db.FinancialMovements
+            .Where(m => m.VoidedAt == null)
             .OrderByDescending(m => m.Date)
             .Select(m => new MovementDto(m.Id, m.Date, m.Concept, m.Type, m.Amount))
             .ToListAsync(ct);
@@ -28,7 +30,7 @@ public class FinanceService(BoeshiriDbContext db, IAuditLogger audit) : IFinance
     {
         var movement = new FinancialMovement
         {
-            Date = request.Date,
+            Date = Fechas.Utc(request.Date),
             Concept = request.Concept.Trim(),
             Type = request.Type,
             Amount = request.Amount,
@@ -46,15 +48,21 @@ public class FinanceService(BoeshiriDbContext db, IAuditLogger audit) : IFinance
     {
         var movement = await db.FinancialMovements.FirstOrDefaultAsync(m => m.Id == id, ct)
             ?? throw AppException.NotFound("El movimiento no existe.");
+        if (movement.VoidedAt is not null)
+            throw AppException.Conflict("El movimiento está anulado y ya no se edita.");
 
-        movement.Date = request.Date;
+        // La auditoría guarda el antes y el después: sin el «antes», editar un
+        // importe borraba el valor original sin dejar rastro.
+        var antes = $"{movement.Date:yyyy-MM-dd} {movement.Type} {movement.Amount:0.00} — {movement.Concept}";
+
+        movement.Date = Fechas.Utc(request.Date);
         movement.Concept = request.Concept.Trim();
         movement.Type = request.Type;
         movement.Amount = request.Amount;
         movement.UpdatedAt = DateTime.UtcNow;
 
         audit.Log(userId, "finanzas.movimiento_editado", "FinancialMovement", movement.Id.ToString(),
-            $"{movement.Type} {movement.Amount:0.00} — {movement.Concept}");
+            $"{antes} → {movement.Date:yyyy-MM-dd} {movement.Type} {movement.Amount:0.00} — {movement.Concept}");
         await db.SaveChangesAsync(ct);
     }
 
@@ -63,8 +71,13 @@ public class FinanceService(BoeshiriDbContext db, IAuditLogger audit) : IFinance
         var movement = await db.FinancialMovements.FirstOrDefaultAsync(m => m.Id == id, ct)
             ?? throw AppException.NotFound("El movimiento no existe.");
 
-        db.FinancialMovements.Remove(movement);
-        audit.Log(userId, "finanzas.movimiento_eliminado", "FinancialMovement", movement.Id.ToString(), movement.Concept);
+        if (movement.VoidedAt is not null)
+            return; // ya estaba anulado
+
+        movement.VoidedAt = DateTime.UtcNow;
+        movement.VoidedBy = userId;
+        audit.Log(userId, "finanzas.movimiento_anulado", "FinancialMovement", movement.Id.ToString(),
+            $"{movement.Date:yyyy-MM-dd} {movement.Type} {movement.Amount:0.00} — {movement.Concept}");
         await db.SaveChangesAsync(ct);
     }
 }

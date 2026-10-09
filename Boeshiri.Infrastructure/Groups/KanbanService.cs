@@ -34,6 +34,13 @@ public class KanbanService(BoeshiriDbContext db) : IKanbanService
         if (!IsManager(role))
             throw AppException.Forbidden("Solo el líder o coordinador del grupo puede crear tareas.");
 
+        var asignados = (request.AssigneeIds ?? []).Distinct().ToList();
+        var integrantes = await db.GroupMemberships
+            .Where(m => m.GroupId == groupId && asignados.Contains(m.UserId))
+            .CountAsync(ct);
+        if (integrantes != asignados.Count)
+            throw AppException.BadRequest("Solo puedes asignar la tarea a integrantes del grupo.");
+
         var task = new KanbanTask
         {
             GroupId = groupId,

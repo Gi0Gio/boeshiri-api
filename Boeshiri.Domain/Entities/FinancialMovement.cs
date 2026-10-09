@@ -22,4 +22,11 @@ public class FinancialMovement
     public Guid CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Anulado (no borrado). Unas cuentas de transparencia no pierden movimientos:
+    /// el anulado deja de sumar, pero la fila y quién la anuló siguen ahí.
+    /// </summary>
+    public DateTime? VoidedAt { get; set; }
+    public Guid? VoidedBy { get; set; }
 }

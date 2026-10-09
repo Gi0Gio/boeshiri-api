@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Groups;
@@ -62,6 +63,9 @@ public class GroupService(
         if (await db.Groups.AnyAsync(g => g.Type == GroupType.Commission && g.Name.ToLower() == name.ToLower(), ct))
             throw AppException.Conflict("Ya existe una comisión con ese nombre.");
 
+        if (request.CoordinatorUserId is Guid c)
+            await Personas.ExigirActivosAsync(db, [c], "Coordinador", ct);
+
         var commission = new Group { Name = name, Type = GroupType.Commission, Permanent = request.Permanent };
         if (request.CoordinatorUserId is Guid coord)
             commission.Memberships.Add(new GroupMembership { UserId = coord, Role = GroupRole.Coordinator });
@@ -79,6 +83,7 @@ public class GroupService(
             throw AppException.NotFound("La comisión no existe.");
 
         await EnsureCanManageAsync(commissionId, userId, canManageGlobally, ct);
+        await Personas.ExigirActivosAsync(db, [coordinatorUserId], "Coordinador", ct);
 
         var memberships = await db.GroupMemberships.Where(m => m.GroupId == commissionId).ToListAsync(ct);
 
@@ -170,6 +175,13 @@ public class GroupService(
             throw AppException.NotFound("La comisión no existe.");
 
         await EnsureCanManageAsync(commissionId, userId, canManageGlobally, ct);
+
+        // El líder sale de la comisión: un equipo es una parte de ella, no gente de fuera.
+        var esIntegrante = await db.GroupMemberships
+            .AnyAsync(m => m.GroupId == commissionId && m.UserId == request.LeaderUserId, ct);
+        if (!esIntegrante)
+            throw AppException.BadRequest("El líder del equipo tiene que ser integrante de la comisión.");
+        await Personas.ExigirActivosAsync(db, [request.LeaderUserId], "Líder", ct);
 
         var team = new Group
         {

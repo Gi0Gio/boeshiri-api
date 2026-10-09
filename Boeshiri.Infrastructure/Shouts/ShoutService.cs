@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Notifications;
@@ -97,7 +98,7 @@ public class ShoutService(
     public async Task<Guid> CreateAsync(Guid userId, CreateShoutRequest request, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
-        var happensAt = Normalize(request.HappensAt);
+        var happensAt = Fechas.Utc(request.HappensAt);
 
         if (happensAt <= now)
             throw AppException.BadRequest("El grito tiene que ser para una fecha futura.");
@@ -139,7 +140,7 @@ public class ShoutService(
         if (s.Status != ShoutStatus.Open)
             throw AppException.Conflict("Este grito ya no está abierto.");
 
-        var happensAt = Normalize(request.HappensAt);
+        var happensAt = Fechas.Utc(request.HappensAt);
         if (happensAt <= DateTime.UtcNow)
             throw AppException.BadRequest("El grito tiene que ser para una fecha futura.");
 
@@ -284,18 +285,6 @@ public class ShoutService(
         if (s.Status != ShoutStatus.Open) throw AppException.Conflict("Este grito ya no está abierto.");
         if (s.HappensAt <= DateTime.UtcNow) throw AppException.Conflict("Este grito ya pasó.");
     }
-
-    /// <summary>
-    /// La fecha se guarda en UTC. Un cliente puede mandarla sin zona (Unspecified);
-    /// tratarla como local haría que el mismo grito venciera a horas distintas
-    /// según dónde corra el servidor.
-    /// </summary>
-    private static DateTime Normalize(DateTime value) => value.Kind switch
-    {
-        DateTimeKind.Utc => value,
-        DateTimeKind.Local => value.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-    };
 
     /// <summary>
     /// Fila cruda desde la base. El estado efectivo se calcula fuera de la consulta:

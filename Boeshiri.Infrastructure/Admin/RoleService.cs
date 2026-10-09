@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Admin;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
@@ -152,6 +153,16 @@ public class RoleService(BoeshiriDbContext db, IAuditLogger audit) : IRoleServic
 
         if (await db.UserRoles.AnyAsync(ur => ur.UserId == userId && ur.RoleId == roleId, ct))
             return; // ya lo tiene: idempotente
+
+        // Un rol se da a miembros activos: antes se le podía dar la Junta a un
+        // postulante que nadie había aceptado.
+        await Personas.ExigirActivosAsync(db, [userId], "Rol", ct);
+
+        // Quien gestiona roles sin ser Super Administrador no puede concederse (ni
+        // conceder) el comodín: sería escalar a control total.
+        var rolConComodin = await db.RolePermissions.AnyAsync(rp => rp.RoleId == roleId && rp.Permission.Key == Wildcard, ct);
+        if (rolConComodin && !await Personas.EsSuperAdminAsync(db, actorId, ct))
+            throw AppException.Forbidden("Solo un Super Administrador puede asignar el rol de Super Administrador.");
 
         db.UserRoles.Add(new UserRole { UserId = userId, RoleId = roleId, AssignedBy = actorId });
         audit.Log(actorId, "rol.asignado", "User", userId.ToString(), roleId.ToString());

@@ -71,7 +71,7 @@ public class FinanceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteMovementAsync_RemovesAndAudits()
+    public async Task DeleteMovementAsync_AnulaSinBorrarYAudita()
     {
         Guid id;
         await using (var ctx = _db.CreateContext())
@@ -81,8 +81,11 @@ public class FinanceServiceTests : IDisposable
             await NewService(ctx).DeleteMovementAsync(id, _treasurer);
 
         await using var check = _db.CreateContext();
-        Assert.False(await check.FinancialMovements.AnyAsync(m => m.Id == id));
-        Assert.Equal(1, await check.AuditEntries.CountAsync(a => a.Action == "finanzas.movimiento_eliminado"));
+        var mov = await check.FinancialMovements.SingleAsync(m => m.Id == id);
+        Assert.NotNull(mov.VoidedAt);
+        Assert.Equal(_treasurer, mov.VoidedBy);
+        Assert.Equal(1, await check.AuditEntries.CountAsync(a => a.Action == "finanzas.movimiento_anulado"));
+        Assert.DoesNotContain((await NewService(check).GetSummaryAsync()).Movements, m => m.Id == id);
     }
 
     [Fact]

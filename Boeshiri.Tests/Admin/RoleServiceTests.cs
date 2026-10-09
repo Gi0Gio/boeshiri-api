@@ -1,3 +1,4 @@
+using Boeshiri.Domain.Enums;
 using Boeshiri.Application.Admin;
 using Boeshiri.Application.Common;
 using Boeshiri.Domain.Entities;
@@ -167,7 +168,7 @@ public class RoleServiceTests : IDisposable
     private async Task<Guid> AddUserAsync(string email)
     {
         await using var ctx = _db.CreateContext();
-        var u = new User { Email = email, PasswordHash = "x", FullName = email };
+        var u = new User { Email = email, PasswordHash = "x", FullName = email, Status = MemberStatus.Active };
         ctx.Users.Add(u);
         await ctx.SaveChangesAsync();
         return u.Id;

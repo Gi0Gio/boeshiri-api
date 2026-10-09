@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Admin;
 using Boeshiri.Application.Audit;
 using Boeshiri.Application.Common;
@@ -53,11 +54,23 @@ public class MemberService(
         if (user.Status == request.Status)
             throw AppException.Conflict($"El miembro ya está en estado '{Etiqueta(request.Status)}'.");
 
+        // La Junta gestiona miembros, no a quien administra el sistema: antes podía
+        // suspender o expulsar al Super Administrador y dejar el sistema sin nadie
+        // capaz de revertirlo.
+        if (await Personas.EsSuperAdminAsync(db, memberId, ct) && !await Personas.EsSuperAdminAsync(db, actorId, ct))
+            throw AppException.Forbidden("Solo un Super Administrador puede cambiar el estado de otro Super Administrador.");
+
         var anterior = user.Status;
         user.Status = request.Status;
         user.StatusChangedAt = DateTime.UtcNow;
 
         notifications.Notify(user.Id, "miembro.estado_cambiado", MensajeAviso(request.Status));
+
+        // Las sesiones abiertas se cierran: el JWT lleva el estado dentro, y sin esto
+        // una suspensión tardaba hasta media hora en surtir efecto.
+        await db.RefreshTokens
+            .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow), ct);
         audit.Log(actorId, "miembro.estado_cambiado", "User", user.Id.ToString(),
             $"{anterior} → {request.Status}{(string.IsNullOrWhiteSpace(request.Motivo) ? "" : $" · {request.Motivo}")}");
 

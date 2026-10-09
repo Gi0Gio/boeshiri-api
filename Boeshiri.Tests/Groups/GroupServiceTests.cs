@@ -133,6 +133,7 @@ public class GroupServiceTests : IDisposable
         var coordinator = await AddUserAsync("coord@ex.com");
         await AddMembershipAsync(commission, coordinator, GroupRole.Coordinator);
         var leader = await AddUserAsync("lider@ex.com");
+        await AddMembershipAsync(commission, leader, GroupRole.Member);
 
         Guid teamId;
         await using (var ctx = _db.CreateContext())

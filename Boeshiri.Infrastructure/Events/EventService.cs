@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Abstractions;
 using Boeshiri.Infrastructure.Storage;
 using System.Linq.Expressions;
@@ -89,13 +90,15 @@ public class EventService(
         if ((request.Images?.Count ?? 0) > 4)
             throw AppException.BadRequest("Máximo 4 imágenes por evento.");
         ArchivosGuard.ExigirPropias(storage, request.Images, null, ArchivosGuard.CarpetasImagen, "Imágenes");
+        if (request.ResponsibleId is Guid resp)
+            await Personas.ExigirActivosAsync(db, [resp], "Responsable", ct);
 
         var ev = new Event
         {
             Category = request.Category.Trim(),
             Title = request.Title.Trim(),
             Description = request.Description,
-            Date = request.Date,
+            Date = Fechas.Utc(request.Date),
             Location = request.Location,
             Cost = request.Cost,
             Visibility = request.Visibility,
@@ -118,10 +121,13 @@ public class EventService(
         var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw AppException.NotFound("El evento no existe.");
 
+        if (request.ResponsibleId is Guid resp && resp != ev.ResponsibleId)
+            await Personas.ExigirActivosAsync(db, [resp], "Responsable", ct);
+
         ev.Category = request.Category.Trim();
         ev.Title = request.Title.Trim();
         ev.Description = request.Description;
-        ev.Date = request.Date;
+        ev.Date = Fechas.Utc(request.Date);
         ev.Location = request.Location;
         ev.Cost = request.Cost;
         ev.Visibility = request.Visibility;
@@ -152,8 +158,10 @@ public class EventService(
         var ev = await db.Events.Include(x => x.Attendees).FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw AppException.NotFound("El evento no existe.");
 
-        ev.AttendanceCount = request.Count;
+        var nuevos = (request.MemberIds ?? []).Distinct().Where(id => ev.Attendees.All(a => a.UserId != id)).ToList();
+        await Personas.ExigirActivosAsync(db, nuevos, "Asistentes", ct);
 
+        ev.AttendanceCount = request.Count;
         foreach (var memberId in (request.MemberIds ?? []).Distinct())
         {
             if (ev.Attendees.Any(a => a.UserId == memberId))
