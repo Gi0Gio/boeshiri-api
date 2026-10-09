@@ -14,6 +14,7 @@ public class AppException(int statusCode, string message) : Exception(message)
     public static AppException Forbidden(string message) => new(StatusCodes.Forbidden, message);
     public static AppException NotFound(string message) => new(StatusCodes.NotFound, message);
     public static AppException Conflict(string message) => new(StatusCodes.Conflict, message);
+    public static AppException TooManyRequests(string message) => new(StatusCodes.TooManyRequests, message);
 
     /// <summary>
     /// Falló un servicio del que dependemos (storage, correo…). No es culpa de la
@@ -28,6 +29,7 @@ public class AppException(int statusCode, string message) : Exception(message)
         public const int Forbidden = 403;
         public const int NotFound = 404;
         public const int Conflict = 409;
+        public const int TooManyRequests = 429;
         public const int BadGateway = 502;
     }
 }

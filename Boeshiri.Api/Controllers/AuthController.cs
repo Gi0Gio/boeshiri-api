@@ -3,6 +3,7 @@ using Boeshiri.Application.Common;
 using Boeshiri.Infrastructure.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace Boeshiri.Api.Controllers;
@@ -25,6 +26,7 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
     private const string SessionCookiePath = "/auth";
 
     /// <summary>Registro / postulación (RF-PUB-13/13b).</summary>
+    [EnableRateLimiting(Limites.Auth)]
     [HttpPost("registro")]
     public async Task<ActionResult<RegisterResult>> Register(RegisterRequest request, CancellationToken ct)
         => Ok(await authService.RegisterAsync(request, ct));
@@ -37,6 +39,7 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
     /// acaba de registrarse no debería aterrizar en una respuesta de API. El front
     /// llama con Accept: application/json y sigue recibiendo JSON.
     /// </summary>
+    [EnableRateLimiting(Limites.Auth)]
     [HttpGet("verificar")]
     public async Task<IActionResult> Verify([FromQuery] string token, CancellationToken ct)
     {
@@ -59,6 +62,7 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
     private string FrontBaseUrl => app.Value.PublicBaseUrl.TrimEnd('/');
 
     /// <summary>Reenvía el enlace de verificación (RF-PUB-13b).</summary>
+    [EnableRateLimiting(Limites.Auth)]
     [HttpPost("reenviar-verificacion")]
     public async Task<IActionResult> ResendVerification(ResendVerificationRequest request, CancellationToken ct)
     {
@@ -73,6 +77,7 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
     /// Inicio de sesión: devuelve un JWT con los permisos efectivos y deja la cookie
     /// de renovación.
     /// </summary>
+    [EnableRateLimiting(Limites.Auth)]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResult>> Login(LoginRequest request, CancellationToken ct)
     {
@@ -82,6 +87,7 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
     }
 
     /// <summary>Canjea la cookie de renovación por un JWT nuevo.</summary>
+    [EnableRateLimiting(Limites.Renovar)]
     [HttpPost("renovar")]
     public async Task<ActionResult<AuthResult>> Refresh(CancellationToken ct)
     {
@@ -95,6 +101,7 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
     }
 
     /// <summary>Cierra la sesión: revoca el token y borra la cookie.</summary>
+    [EnableRateLimiting(Limites.Renovar)]
     [HttpPost("salir")]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {

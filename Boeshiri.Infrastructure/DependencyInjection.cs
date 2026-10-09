@@ -93,6 +93,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddSingleton<LoginThrottle>();
 
         // Correo: Resend si hay API key; si no, el emisor de desarrollo que solo
         // escribe el mensaje (con su enlace) en el log (ADR-0003).

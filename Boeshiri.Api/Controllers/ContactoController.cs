@@ -1,10 +1,10 @@
-using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using Boeshiri.Application.Abstractions;
 using Boeshiri.Infrastructure.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace Boeshiri.Api.Controllers;
@@ -42,22 +42,13 @@ public class ContactoController(
     /// de Resend. En memoria basta — si el proceso reinicia, se pierde el registro
     /// y como mucho pasa un mensaje de más.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, DateTime> UltimoEnvio = new();
-    private static readonly TimeSpan Espera = TimeSpan.FromMinutes(1);
-
+    // Tope de mensajes por IP (Limites.Contacto). Antes era un diccionario en memoria
+    // por IP que crecía sin fin y, sin leer X-Forwarded-For, veía a todo el mundo
+    // como la IP del borde de Railway: un único cupo para todos.
+    [EnableRateLimiting(Limites.Contacto)]
     [HttpPost]
     public async Task<IActionResult> Send(ContactRequest request, CancellationToken ct)
     {
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
-        var ahora = DateTime.UtcNow;
-
-        if (UltimoEnvio.TryGetValue(ip, out var previo) && ahora - previo < Espera)
-        {
-            logger.LogInformation("Contacto frenado por espera mínima desde {Ip}", ip);
-            return StatusCode(429, new { detail = "Espera un minuto antes de enviar otro mensaje." });
-        }
-        UltimoEnvio[ip] = ahora;
-
         var destino = app.Value.ContactEmail;
         if (string.IsNullOrWhiteSpace(destino))
         {

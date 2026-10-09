@@ -95,6 +95,21 @@ var corsOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://local
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod()));
 
+// Railway termina el TLS en su borde y reenvía la IP real en X-Forwarded-For. Sin
+// leerla, todas las peticiones parecían venir de la IP del borde (y el límite del
+// formulario de contacto era uno solo para todo el mundo). ForwardLimit = 1: solo
+// cuenta la entrada que añadió el borde; las anteriores las pudo escribir el cliente.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+    o.ForwardLimit = 1;
+});
+
+builder.Services.AddLimites();
+
 // Autorización por permiso: [HasPermission("...")] → política dinámica "perm:...".
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -114,6 +129,7 @@ builder.Services.AddProblemDetails(options =>
             403 => "No tienes permiso para esta acción.",
             404 => "No se encontró el recurso.",
             409 => "Conflicto con el estado actual.",
+            429 => "Demasiadas peticiones seguidas. Espera un momento.",
             >= 500 => "Ocurrió un error en el servidor. Inténtalo de nuevo.",
             _ => "Ocurrió un error.",
         };
@@ -163,6 +179,7 @@ if (args.Contains("--seed-only"))
     return;
 
 // Configure the HTTP request pipeline.
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -174,6 +191,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -6,6 +6,7 @@ using Boeshiri.Application.Publications;
 using Boeshiri.Infrastructure.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace Boeshiri.Api.Controllers;
@@ -41,6 +42,7 @@ public class CompartirController(
 
     // ── Anuncios del marketplace ─────────────────────────────────
 
+    [EnableRateLimiting(Limites.Tarjetas)]
     [HttpGet("producto/{id:guid}")]
     public async Task<IActionResult> Producto(Guid id, CancellationToken ct)
     {
@@ -55,6 +57,7 @@ public class CompartirController(
             destino: $"{Front}/marketplace/{id}");
     }
 
+    [EnableRateLimiting(Limites.Tarjetas)]
     [HttpGet("producto/{id:guid}/imagen.png")]
     public async Task<IActionResult> ProductoImagen(Guid id, [FromQuery] string? formato, CancellationToken ct)
     {
@@ -78,6 +81,7 @@ public class CompartirController(
     /// propia, el enlace sale como un rectángulo gris. Se compone con el mismo
     /// renderizador que las demás para que la identidad no se bifurque.
     /// </summary>
+    [EnableRateLimiting(Limites.Tarjetas)]
     [HttpGet("marca/imagen.png")]
     public async Task<IActionResult> MarcaImagen([FromQuery] string? formato, CancellationToken ct)
     {
@@ -96,6 +100,7 @@ public class CompartirController(
 
     // ── Publicaciones ────────────────────────────────────────────
 
+    [EnableRateLimiting(Limites.Tarjetas)]
     [HttpGet("publicacion/{id:guid}")]
     public async Task<IActionResult> Publicacion(Guid id, CancellationToken ct)
     {
@@ -110,6 +115,7 @@ public class CompartirController(
             destino: $"{Front}/publicaciones/{id}");
     }
 
+    [EnableRateLimiting(Limites.Tarjetas)]
     [HttpGet("publicacion/{id:guid}/imagen.png")]
     public async Task<IActionResult> PublicacionImagen(Guid id, [FromQuery] string? formato, CancellationToken ct)
     {

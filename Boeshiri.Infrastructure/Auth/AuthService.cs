@@ -5,6 +5,7 @@ using Boeshiri.Application.Auth;
 using Boeshiri.Application.Common;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Infrastructure.Email;
 using Boeshiri.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -26,6 +27,7 @@ public class AuthService(
     IOptions<JwtOptions> jwtOptions,
     IEmailSender emailSender,
     IOptions<AppOptions> appOptions,
+    LoginThrottle throttle,
     ILogger<AuthService> logger) : IAuthService
 {
     private readonly AppOptions _app = appOptions.Value;
@@ -187,20 +189,49 @@ public class AuthService(
     public async Task<SessionResult> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
         var email = Normalize(request.Email);
+
+        if (throttle.Bloqueada(email))
+        {
+            logger.LogWarning("Login frenado por intentos fallidos: {Email}", Privacidad.OcultarCorreo(email));
+            throw AppException.TooManyRequests(
+                "Demasiados intentos fallidos con esta cuenta. Espera 15 minutos o recupera tu contraseña.");
+        }
+
         var user = await LoadWithRolesAsync(u => u.Email == email, ct);
 
+        // Sin cuenta se verifica igual contra un hash de relleno: si no, responder
+        // más rápido cuando el correo no existe delataría quién tiene cuenta.
+        PasswordVerificationResult result;
         if (user is null)
-            throw AppException.Unauthorized("Correo o contraseña incorrectos.");
+        {
+            passwordHasher.VerifyHashedPassword(UsuarioDeRelleno, HashDeRelleno, request.Password);
+            result = PasswordVerificationResult.Failed;
+        }
+        else
+        {
+            result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
+        }
 
-        var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (result == PasswordVerificationResult.Failed)
+        if (user is null || result == PasswordVerificationResult.Failed)
+        {
+            // Los fallos se registran: sin esto, un ataque de contraseñas no dejaba rastro.
+            throttle.RegistrarFallo(email);
+            logger.LogWarning("Login fallido: {Email}", Privacidad.OcultarCorreo(email));
             throw AppException.Unauthorized("Correo o contraseña incorrectos.");
+        }
+
+        throttle.Limpiar(email);
 
         if (!user.EmailVerified)
             throw AppException.Forbidden("Debes verificar tu correo antes de iniciar sesión.");
 
         if (EstadoBloqueado(user))
-            throw AppException.Forbidden($"Tu cuenta está en estado '{user.Status}' y no puede iniciar sesión.");
+            throw AppException.Forbidden(user.Status switch
+            {
+                MemberStatus.Suspended => "Tu cuenta está suspendida. Escribe a la Junta para más detalles.",
+                MemberStatus.Expelled => "Tu membresía fue dada de baja y la cuenta ya no puede iniciar sesión.",
+                _ => "Tu membresía figura como retirada y la cuenta ya no puede iniciar sesión.",
+            });
 
         if (result == PasswordVerificationResult.SuccessRehashNeeded)
         {
@@ -220,7 +251,7 @@ public class AuthService(
         db.RefreshTokens.Add(refresh);
         await db.SaveChangesAsync(ct);
 
-        logger.LogInformation("Login exitoso: {Email}", user.Email);
+        logger.LogInformation("Login exitoso: {Email}", Privacidad.OcultarCorreo(user.Email));
         return new SessionResult(BuildAuthResult(user), refreshToken, refresh.ExpiresAt);
     }
 
@@ -369,4 +400,7 @@ public class AuthService(
             .FirstOrDefaultAsync(predicate, ct);
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+
+    private static readonly User UsuarioDeRelleno = new() { Email = "relleno@invalido", PasswordHash = "", FullName = "relleno" };
+    private static readonly string HashDeRelleno = new PasswordHasher<User>().HashPassword(UsuarioDeRelleno, Guid.NewGuid().ToString());
 }

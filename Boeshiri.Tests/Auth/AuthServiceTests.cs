@@ -31,7 +31,11 @@ public class AuthServiceTests : IDisposable
         Options.Create(new JwtOptions { RefreshTokenDays = 30 }),
         _email,
         Options.Create(new AppOptions { PublicBaseUrl = "http://test" }),
+        _throttle,
         NullLogger<AuthService>.Instance);
+
+    private readonly LoginThrottle _throttle = new(new Microsoft.Extensions.Caching.Memory.MemoryCache(
+        new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions { SizeLimit = 10_000 }));
 
     private static RegisterRequest Reg(string email) => new()
     {
@@ -290,6 +294,66 @@ public class AuthServiceTests : IDisposable
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+    /// <summary>
+    /// Tras 5 contraseñas incorrectas la cuenta deja de admitir intentos un rato,
+    /// aunque el siguiente intento traiga la contraseña buena: si no, el freno solo
+    /// retrasaría a quien prueba contraseñas, no lo detendría.
+    /// </summary>
+    [Fact]
+    public async Task LoginAsync_TrasCincoFallos_SeFrenaAunqueLaClaveSeaBuena()
+    {
+        await RegisterVerifiedActiveAsync("bf@ex.com");
+
+        for (var i = 0; i < LoginThrottle.MaxFallos; i++)
+        {
+            await using var ctx = _db.CreateContext();
+            var fallo = await Assert.ThrowsAsync<AppException>(() =>
+                NewService(ctx).LoginAsync(new LoginRequest { Email = "bf@ex.com", Password = $"Mala{i}" }));
+            Assert.Equal(401, fallo.StatusCode);
+        }
+
+        await using var c2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(c2).LoginAsync(new LoginRequest { Email = "bf@ex.com", Password = "Secreta123" }));
+        Assert.Equal(429, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ExitoTrasAlgunFallo_ReiniciaElContador()
+    {
+        await RegisterVerifiedActiveAsync("ok@ex.com");
+        for (var i = 0; i < LoginThrottle.MaxFallos - 1; i++)
+        {
+            await using var ctx = _db.CreateContext();
+            await Assert.ThrowsAsync<AppException>(() =>
+                NewService(ctx).LoginAsync(new LoginRequest { Email = "ok@ex.com", Password = "Mala" }));
+        }
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).LoginAsync(new LoginRequest { Email = "ok@ex.com", Password = "Secreta123" });
+
+        // El contador volvió a cero: un fallo más no bloquea.
+        await using var c3 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(c3).LoginAsync(new LoginRequest { Email = "ok@ex.com", Password = "Mala" }));
+        Assert.Equal(401, ex.StatusCode);
+    }
+
+    /// <summary>Un correo sin cuenta cuenta como fallo igual: el freno no delata quién existe.</summary>
+    [Fact]
+    public async Task LoginAsync_CorreoSinCuenta_TambienSeFrena()
+    {
+        for (var i = 0; i < LoginThrottle.MaxFallos; i++)
+        {
+            await using var ctx = _db.CreateContext();
+            await Assert.ThrowsAsync<AppException>(() =>
+                NewService(ctx).LoginAsync(new LoginRequest { Email = "nadie@ex.com", Password = "x" }));
+        }
+        await using var c2 = _db.CreateContext();
+        var ex = await Assert.ThrowsAsync<AppException>(() =>
+            NewService(c2).LoginAsync(new LoginRequest { Email = "nadie@ex.com", Password = "x" }));
+        Assert.Equal(429, ex.StatusCode);
+    }
+
     private async Task<SessionResult> LoginActiveAsync(string email)
     {
         await RegisterVerifiedActiveAsync(email);
