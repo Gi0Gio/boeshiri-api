@@ -11,7 +11,7 @@ namespace Boeshiri.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("mi")]
-public class MiPerfilController(IProfileService profiles) : ControllerBase
+public class MiPerfilController(IProfileService profiles, IMisDatosService misDatos) : ControllerBase
 {
     /// <summary>Perfil propio completo (vista de edición).</summary>
     [HttpGet("perfil")]
@@ -42,6 +42,24 @@ public class MiPerfilController(IProfileService profiles) : ControllerBase
     public async Task<IActionResult> UpdateSocialLinks(UpdateSocialLinksRequest request, CancellationToken ct)
     {
         await profiles.UpdateSocialLinksAsync(User.GetUserId(), request, ct);
+        return NoContent();
+    }
+
+    /// <summary>Descarga todos los datos propios en JSON (Ley 81: acceso y portabilidad).</summary>
+    [HttpGet("datos")]
+    public async Task<IActionResult> Exportar(CancellationToken ct)
+    {
+        var datos = await misDatos.ExportarAsync(User.GetUserId(), ct);
+        Response.Headers.ContentDisposition = "attachment; filename=\"mis-datos-boesh-iri.json\"";
+        return Ok(datos);
+    }
+
+    /// <summary>Elimina la cuenta (Ley 81: supresión). Pide la contraseña.</summary>
+    [HttpPost("cuenta/eliminar")]
+    public async Task<IActionResult> Eliminar(EliminarCuentaRequest request, CancellationToken ct)
+    {
+        // Sus sesiones mueren con la cuenta (se borran los tokens de renovación).
+        await misDatos.EliminarCuentaAsync(User.GetUserId(), request, ct);
         return NoContent();
     }
 }

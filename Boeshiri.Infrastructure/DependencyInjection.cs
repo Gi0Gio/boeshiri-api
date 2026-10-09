@@ -132,6 +132,7 @@ public static class DependencyInjection
 
         // ── Perfil / Comunidad ───────────────────────────────────
         services.AddScoped<IProfileService, ProfileService>();
+        services.AddScoped<IMisDatosService, MisDatosService>();
 
         // ── Marketplace ──────────────────────────────────────────
         services.AddScoped<IMarketplaceService, MarketplaceService>();
