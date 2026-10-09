@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Application.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -34,7 +35,7 @@ public class ResendEmailSender(
         try
         {
             var resp = await resend.EmailSendAsync(message, ct);
-            logger.LogInformation("Correo enviado a {To} (Resend id {Id}): {Subject}", to, resp.Content, subject);
+            logger.LogInformation("Correo enviado a {To} (Resend id {Id}): {Subject}", Privacidad.OcultarCorreo(to), resp.Content, subject);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -44,15 +45,14 @@ public class ResendEmailSender(
         }
         catch (Exception ex)
         {
-            // Se vuelca el cuerpo en el log a propósito: mientras no haya un dominio
-            // verificado, Resend solo entrega al correo dueño de la cuenta y el resto
-            // falla. Sin este volcado se perdería el enlace de verificación y la
-            // persona quedaría sin forma de activar su cuenta.
+            // El cuerpo NO va al log: lleva enlaces de un solo uso (verificar,
+            // restablecer contraseña) y quien leyera los logs podría usarlos para
+            // entrar en una cuenta ajena. Si falla una verificación, la Junta puede
+            // emitir el enlace a mano desde Postulantes.
             logger.LogError(ex,
                 "No se pudo enviar el correo a {To} con asunto '{Subject}'. Remitente: {From}. " +
-                "Revisa que el dominio esté verificado en Resend y que la API key sea válida.\n" +
-                "[CORREO NO ENVIADO — contenido de respaldo]\n{Body}",
-                to, subject, _options.From, htmlBody);
+                "Revisa que el dominio esté verificado en Resend y que la API key sea válida.",
+                Privacidad.OcultarCorreo(to), subject, _options.From);
         }
     }
 }

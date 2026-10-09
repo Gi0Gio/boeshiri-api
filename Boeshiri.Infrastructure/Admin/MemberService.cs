@@ -77,7 +77,7 @@ public class MemberService(
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation("Estado de {Email} cambiado de {Anterior} a {Nuevo} por {ActorId}",
-            user.Email, anterior, request.Status, actorId);
+            Privacidad.OcultarCorreo(user.Email), anterior, request.Status, actorId);
     }
 
     /// <summary>Aviso in-app que recibe el miembro afectado.</summary>

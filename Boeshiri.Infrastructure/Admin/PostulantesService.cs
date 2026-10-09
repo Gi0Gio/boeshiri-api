@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Common;
 using System.Security.Cryptography;
 using Boeshiri.Application.Admin;
 using Boeshiri.Application.Audit;
@@ -60,7 +61,7 @@ public class PostulantesService(
         await db.SaveChangesAsync(ct);
 
         var link = $"{appOptions.Value.PublicBaseUrl.TrimEnd('/')}/verificar?token={token}";
-        logger.LogInformation("Enlace de verificación emitido a mano para {Email} por {ActorId}", user.Email, actorId);
+        logger.LogInformation("Enlace de verificación emitido a mano para {Email} por {ActorId}", Privacidad.OcultarCorreo(user.Email), actorId);
 
         return new VerificationLinkDto(link, user.Phone, user.FullName);
     }
@@ -114,7 +115,7 @@ public class PostulantesService(
             notifications.Notify(user.Id, "solicitud.aceptada",
                 "¡Tu solicitud fue aprobada! Ya eres miembro activo de Boesh Irí.");
             audit.Log(decidedBy, "postulante.aceptado", "User", user.Id.ToString(), user.Email);
-            logger.LogInformation("Postulante {Email} ACEPTADO por {DecidedBy}", user.Email, decidedBy);
+            logger.LogInformation("Postulante {Email} ACEPTADO por {DecidedBy}", Privacidad.OcultarCorreo(user.Email), decidedBy);
         }
         else
         {
@@ -124,7 +125,7 @@ public class PostulantesService(
             notifications.Notify(user.Id, "solicitud.rechazada",
                 "Tu solicitud fue revisada y no fue aprobada en esta ocasión.");
             audit.Log(decidedBy, "postulante.rechazado", "User", user.Id.ToString(), user.Email);
-            logger.LogInformation("Postulante {Email} RECHAZADO por {DecidedBy}", user.Email, decidedBy);
+            logger.LogInformation("Postulante {Email} RECHAZADO por {DecidedBy}", Privacidad.OcultarCorreo(user.Email), decidedBy);
         }
 
         await db.SaveChangesAsync(ct);

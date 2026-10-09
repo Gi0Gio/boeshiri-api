@@ -101,7 +101,7 @@ public class AuthService(
         // el resultado con la identidad del sitio.
         await SendVerificationEmailAsync(user, token, ct);
 
-        logger.LogInformation("Nuevo postulante registrado: {Email}", user.Email);
+        logger.LogInformation("Nuevo postulante registrado: {Email}", Privacidad.OcultarCorreo(user.Email));
         return new RegisterResult(user.Id, "Cuenta creada. Revisa tu correo para verificar la dirección.");
     }
 
@@ -114,13 +114,13 @@ public class AuthService(
         // en un oráculo para averiguar quién tiene cuenta (enumeración de correos).
         if (user is null)
         {
-            logger.LogInformation("Reenvío pedido para un correo sin cuenta: {Email}", normalizado);
+            logger.LogInformation("Reenvío pedido para un correo sin cuenta: {Email}", Privacidad.OcultarCorreo(normalizado));
             return;
         }
 
         if (user.EmailVerified)
         {
-            logger.LogInformation("Reenvío pedido para un correo ya verificado: {Email}", normalizado);
+            logger.LogInformation("Reenvío pedido para un correo ya verificado: {Email}", Privacidad.OcultarCorreo(normalizado));
             return;
         }
 
@@ -130,7 +130,7 @@ public class AuthService(
 
         if (reciente)
         {
-            logger.LogInformation("Reenvío ignorado por espera mínima: {Email}", normalizado);
+            logger.LogInformation("Reenvío ignorado por espera mínima: {Email}", Privacidad.OcultarCorreo(normalizado));
             return;
         }
 
@@ -153,7 +153,7 @@ public class AuthService(
         await db.SaveChangesAsync(ct);
 
         await SendVerificationEmailAsync(user, token, ct);
-        logger.LogInformation("Enlace de verificación reenviado a {Email}", normalizado);
+        logger.LogInformation("Enlace de verificación reenviado a {Email}", Privacidad.OcultarCorreo(normalizado));
     }
 
     private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -183,7 +183,7 @@ public class AuthService(
         verification.User.VerifiedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
-        logger.LogInformation("Correo verificado: {Email}", verification.User.Email);
+        logger.LogInformation("Correo verificado: {Email}", Privacidad.OcultarCorreo(verification.User.Email));
     }
 
     public async Task<SessionResult> LoginAsync(LoginRequest request, CancellationToken ct = default)

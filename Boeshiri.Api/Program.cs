@@ -197,8 +197,17 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Sonda de salud / versión (anónima). Sirve para confirmar qué build está vivo.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "boeshiri-api" }));
+// Sonda de salud (anónima). Comprueba también la base: antes respondía «ok» con la
+// base caída y el monitor no se enteraba.
+app.MapGet("/health", async (BoeshiriDbContext db, CancellationToken ct) =>
+{
+    bool baseOk;
+    try { baseOk = await db.Database.CanConnectAsync(ct); }
+    catch { baseOk = false; }
+
+    var cuerpo = new { status = baseOk ? "ok" : "degradado", service = "boeshiri-api", db = baseOk ? "ok" : "sin conexión" };
+    return baseOk ? Results.Ok(cuerpo) : Results.Json(cuerpo, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
 
 app.Run();
 

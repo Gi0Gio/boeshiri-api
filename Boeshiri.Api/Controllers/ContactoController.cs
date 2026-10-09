@@ -75,7 +75,7 @@ public class ContactoController(
             $"{request.Name} <{request.Email}> escribió:\n\n{request.Message}\n\n--\nResponde a {request.Email}",
             ct);
 
-        logger.LogInformation("Mensaje de contacto de {Email} enviado a {Destino}", request.Email, destino);
+        logger.LogInformation("Mensaje de contacto de {Email} enviado", Boeshiri.Infrastructure.Common.Privacidad.OcultarCorreo(request.Email));
         return Ok(new { mensaje = "Mensaje enviado. Te responderemos pronto." });
     }
 }
