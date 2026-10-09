@@ -44,5 +44,21 @@ public class Product
     /// </summary>
     public DateTime? ModeratedAt { get; set; }
 
+    /// <summary>
+    /// Último cambio de cualquier tipo (datos, estado, fotos). Lo pone el DbContext
+    /// al guardar, así ningún camino lo olvida. Es lo que una web externa pide para
+    /// traer solo lo cambiado («desde tal fecha»).
+    /// </summary>
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// El vendedor permite que el producto aparezca también en webs externas
+    /// (CatalogConnection Outbound). Sí por defecto: la web de catálogo es del colectivo.
+    /// </summary>
+    public bool AllowExternalListing { get; set; } = true;
+
     public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+
+    /// <summary>Su gemelo en webs externas: de dónde vino o dónde se publicó.</summary>
+    public ICollection<ProductExternalLink> ExternalLinks { get; set; } = new List<ProductExternalLink>();
 }

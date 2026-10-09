@@ -43,10 +43,58 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<FinancialMovement> FinancialMovements => Set<FinancialMovement>();
     public DbSet<TransparencyArticle> TransparencyArticles => Set<TransparencyArticle>();
+    public DbSet<CatalogConnection> CatalogConnections => Set<CatalogConnection>();
+    public DbSet<ProductExternalLink> ProductExternalLinks => Set<ProductExternalLink>();
     public DbSet<OpenCall> OpenCalls => Set<OpenCall>();
     public DbSet<OpenCallQuestion> OpenCallQuestions => Set<OpenCallQuestion>();
     public DbSet<OpenCallResponse> OpenCallResponses => Set<OpenCallResponse>();
     public DbSet<OpenCallAnswer> OpenCallAnswers => Set<OpenCallAnswer>();
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        var (productos, faltan) = ProductosCambiados();
+        productos.AddRange(faltan.Count > 0 ? Products.Where(p => faltan.Contains(p.Id)).ToList() : []);
+        Marcar(productos);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var (productos, faltan) = ProductosCambiados();
+        productos.AddRange(faltan.Count > 0 ? await Products.Where(p => faltan.Contains(p.Id)).ToListAsync(cancellationToken) : []);
+        Marcar(productos);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Productos dados de alta o cambiados, también cuando lo que cambia son sus fotos.
+    /// Devuelve aparte los ids de productos con fotos cambiadas que no están cargados,
+    /// para traerlos: así Product.UpdatedAt (lo que pide el feed para webs externas,
+    /// ADR-0007) no depende de que cada servicio se acuerde de tocarlo.
+    /// </summary>
+    private (List<Product> Productos, List<Guid> Faltan) ProductosCambiados()
+    {
+        var productos = ChangeTracker.Entries<Product>()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified)
+            .Select(e => e.Entity)
+            .ToList();
+        var cargados = ChangeTracker.Entries<Product>().ToDictionary(e => e.Entity.Id, e => e.Entity);
+        var faltan = new List<Guid>();
+        foreach (var img in ChangeTracker.Entries<ProductImage>()
+                     .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        {
+            if (cargados.TryGetValue(img.Entity.ProductId, out var p)) productos.Add(p);
+            else faltan.Add(img.Entity.ProductId);
+        }
+        return (productos, faltan.Distinct().ToList());
+    }
+
+    private static void Marcar(IEnumerable<Product> productos)
+    {
+        var ahora = DateTime.UtcNow;
+        foreach (var p in productos.Distinct())
+            p.UpdatedAt = ahora;
+    }
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -319,9 +367,42 @@ public class BoeshiriDbContext(DbContextOptions<BoeshiriDbContext> options) : Db
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.HasIndex(x => new { x.Status, x.Category });
             e.HasIndex(x => x.SellerId);
+            // «Lo cambiado desde…» para las webs que leen nuestro catálogo.
+            e.HasIndex(x => x.UpdatedAt);
             e.HasOne(x => x.Seller).WithMany().HasForeignKey(x => x.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ── Catálogo compartido con webs externas (modelo preparado, ADR-0007) ──
+        b.Entity<CatalogConnection>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Provider).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Direction).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.BaseUrl).HasMaxLength(500);
+            e.Property(x => x.CredentialKey).HasMaxLength(200);
+            e.Property(x => x.AccessKeyHash).HasMaxLength(128);
+            e.Property(x => x.LastSyncStatus).HasMaxLength(20);
+            e.Property(x => x.LastSyncError).HasMaxLength(2000);
+            e.Property(x => x.InboundCursor).HasMaxLength(500);
+            e.HasIndex(x => x.AccessKeyHash);
+            // Si el vendedor por defecto deja de existir, la conexión queda sin dueño hasta que la Junta elija otro.
+            e.HasOne(x => x.DefaultSeller).WithMany().HasForeignKey(x => x.DefaultSellerId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<ProductExternalLink>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.ExternalId).HasMaxLength(200).IsRequired();
+            e.Property(x => x.ExternalUrl).HasMaxLength(500);
+            e.Property(x => x.RemoteVersion).HasMaxLength(200);
+            // Un producto tiene como mucho un gemelo por web, y un id externo apunta a un solo producto.
+            e.HasIndex(x => new { x.ConnectionId, x.ExternalId }).IsUnique();
+            e.HasIndex(x => new { x.ProductId, x.ConnectionId }).IsUnique();
+            e.HasOne(x => x.Product).WithMany(p => p.ExternalLinks).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Connection).WithMany(c => c.Links).HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         // ── ProductImage ─────────────────────────────────────────
         b.Entity<ProductImage>(e =>
