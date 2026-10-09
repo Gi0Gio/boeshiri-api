@@ -123,6 +123,17 @@ public class GroupService(
             throw AppException.Conflict("Ya tienes una solicitud pendiente en esta comisión.");
 
         db.JoinRequests.Add(new JoinRequest { CommissionId = commissionId, UserId = userId });
+
+        // Sin aviso, la solicitud esperaba a que el coordinador entrara a mirar.
+        var quien = await db.Users.Where(u => u.Id == userId).Select(u => u.FullName).FirstAsync(ct);
+        var comision = await db.Groups.Where(g => g.Id == commissionId).Select(g => g.Name).FirstAsync(ct);
+        var coordinadores = await db.GroupMemberships
+            .Where(m => m.GroupId == commissionId && m.Role == GroupRole.Coordinator)
+            .Select(m => m.UserId)
+            .ToListAsync(ct);
+        foreach (var c in coordinadores)
+            notifications.Notify(c, "comision.solicitud_nueva", $"{quien} pidió entrar a {comision}.");
+
         await db.SaveChangesAsync(ct);
     }
 
@@ -196,6 +207,81 @@ public class GroupService(
         audit.Log(userId, "equipo.creado", "Group", team.Id.ToString(), request.Name);
         await db.SaveChangesAsync(ct);
         return team.Id;
+    }
+
+    public async Task RemoveMemberAsync(Guid groupId, Guid memberId, Guid userId, bool canManageGlobally, CancellationToken ct = default)
+    {
+        var group = await db.Groups.FirstOrDefaultAsync(g => g.Id == groupId, ct)
+            ?? throw AppException.NotFound("El grupo no existe.");
+        var membership = await db.GroupMemberships.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == memberId, ct)
+            ?? throw AppException.NotFound("Esa persona no pertenece al grupo.");
+
+        var esUnoMismo = memberId == userId;
+        if (!esUnoMismo)
+            await EnsureCanManageGroupAsync(group, userId, canManageGlobally, ct);
+
+        if (membership.Role is GroupRole.Coordinator or GroupRole.Leader)
+            throw AppException.Conflict(esUnoMismo
+                ? "Primero nombra a otra persona al frente del grupo; después puedes salir."
+                : "Primero nombra a otra persona al frente del grupo.");
+
+        db.GroupMemberships.Remove(membership);
+
+        // Salir de una comisión es salir también de sus equipos (que no queden
+        // integrantes de un equipo que ya no están en la comisión).
+        if (group.Type == GroupType.Commission)
+        {
+            var enEquipos = await db.GroupMemberships
+                .Where(m => m.UserId == memberId && m.Group.ParentCommissionId == groupId)
+                .ToListAsync(ct);
+            if (enEquipos.Any(m => m.Role == GroupRole.Leader))
+                throw AppException.Conflict("Lidera un equipo de esta comisión: nombra antes a otro líder.");
+            db.GroupMemberships.RemoveRange(enEquipos);
+        }
+
+        if (!esUnoMismo)
+            notifications.Notify(memberId, "grupo.removido", $"Ya no formas parte de {group.Name}.");
+        audit.Log(userId, esUnoMismo ? "grupo.salida" : "grupo.integrante_removido", "Group", groupId.ToString(), memberId.ToString());
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task AddTeamMemberAsync(Guid teamId, Guid memberId, Guid userId, bool canManageGlobally, CancellationToken ct = default)
+    {
+        var team = await db.Groups.FirstOrDefaultAsync(g => g.Id == teamId && g.Type == GroupType.Team, ct)
+            ?? throw AppException.NotFound("El equipo no existe.");
+
+        await EnsureCanManageGroupAsync(team, userId, canManageGlobally, ct);
+
+        if (await db.GroupMemberships.AnyAsync(m => m.GroupId == teamId && m.UserId == memberId, ct))
+            throw AppException.Conflict("Esa persona ya está en el equipo.");
+
+        var enComision = await db.GroupMemberships
+            .AnyAsync(m => m.GroupId == team.ParentCommissionId && m.UserId == memberId, ct);
+        if (!enComision)
+            throw AppException.BadRequest("Solo se suman al equipo integrantes de su comisión.");
+
+        db.GroupMemberships.Add(new GroupMembership { GroupId = teamId, UserId = memberId, Role = GroupRole.Member });
+        notifications.Notify(memberId, "equipo.sumado", $"Te sumaron al equipo {team.Name}.");
+        audit.Log(userId, "equipo.integrante_sumado", "Group", teamId.ToString(), memberId.ToString());
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Gestión de un grupo cualquiera: en una comisión, su coordinador; en un equipo,
+    /// su líder o quien gestiona la comisión madre. La Junta siempre.
+    /// </summary>
+    private async Task EnsureCanManageGroupAsync(Group group, Guid userId, bool canManageGlobally, CancellationToken ct)
+    {
+        if (canManageGlobally) return;
+        if (group.Type == GroupType.Team)
+        {
+            var esLider = await db.GroupMemberships
+                .AnyAsync(m => m.GroupId == group.Id && m.UserId == userId && m.Role == GroupRole.Leader, ct);
+            if (esLider) return;
+            await EnsureCanManageAsync(group.ParentCommissionId!.Value, userId, false, ct);
+            return;
+        }
+        await EnsureCanManageAsync(group.Id, userId, false, ct);
     }
 
     /// <summary>Autoriza gestión de una comisión: coordinador contextual o permiso global.</summary>

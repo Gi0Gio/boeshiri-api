@@ -408,5 +408,29 @@ public class ShoutServiceTests : IDisposable
         return u.Id;
     }
 
+    [Fact]
+    public async Task UpdateAsync_CambiarHoraOLugar_AvisaALosApuntados()
+    {
+        var autor = await AddUserAsync("autor@ex.com");
+        var otro = await AddUserAsync("otro@ex.com");
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+        {
+            id = await NewService(ctx).CreateAsync(autor, Req());
+            await NewService(ctx).JoinAsync(id, otro);
+        }
+
+        UpdateShoutRequest Cambio(string lugar) => new()
+        {
+            Title = "¿Quién se apunta a la playa?", Place = lugar, HappensAt = DateTime.UtcNow.AddDays(3).Date.AddHours(15), Slots = 4
+        };
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateAsync(id, autor, Cambio("Boca Chica"));
+
+        await using var check = _db.CreateContext();
+        Assert.Equal(1, await check.Notifications.CountAsync(n => n.UserId == otro && n.Type == "grito.cambiado"));
+        Assert.Equal(0, await check.Notifications.CountAsync(n => n.UserId == autor && n.Type == "grito.cambiado"));
+    }
+
     public void Dispose() => _db.Dispose();
 }

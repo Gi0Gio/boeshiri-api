@@ -100,4 +100,5 @@ public record MeResult(
     bool EmailVerified,
     string SolicitudEstado,
     IReadOnlyCollection<string> Roles,
-    IReadOnlyCollection<string> Permissions);
+    IReadOnlyCollection<string> Permissions,
+    DateTime? PuedePostularseDesde = null);

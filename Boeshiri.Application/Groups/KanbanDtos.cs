@@ -28,6 +28,18 @@ public record CreateTaskRequest
     public List<Guid>? AssigneeIds { get; init; }
 }
 
+/// <summary>Edición de una tarea (líder/coordinador). Los asignados se reemplazan.</summary>
+public record UpdateTaskRequest
+{
+    [Required, MaxLength(200)]
+    public required string Title { get; init; }
+
+    [MaxLength(2000)]
+    public string? Description { get; init; }
+
+    public List<Guid>? AssigneeIds { get; init; }
+}
+
 /// <summary>Mover una tarea de columna (RF-KAN-02/03).</summary>
 public record MoveTaskRequest
 {

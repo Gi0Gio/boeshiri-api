@@ -150,6 +150,8 @@ public class ShoutService(
             throw AppException.Conflict(
                 $"Ya hay {s.Joins.Count} apuntados: no puedes dejar menos cupos que eso.");
 
+        var cambioLoQueImporta = s.HappensAt != happensAt || s.Place != request.Place.Trim();
+
         s.Title = request.Title.Trim();
         s.Detail = string.IsNullOrWhiteSpace(request.Detail) ? null : request.Detail.Trim();
         s.Place = request.Place.Trim();
@@ -157,6 +159,11 @@ public class ShoutService(
         s.Slots = request.Slots;
         s.Fee = request.Fee;
         s.EditedAt = DateTime.UtcNow;
+
+        // Si cambia cuándo o dónde, quien ya se apuntó tiene que enterarse.
+        if (cambioLoQueImporta)
+            foreach (var j in s.Joins.Where(j => j.UserId != userId))
+                notifications.Notify(j.UserId, "grito.cambiado", $"«{s.Title}» cambió de hora o de lugar. Revisa los datos.");
 
         await db.SaveChangesAsync(ct);
     }

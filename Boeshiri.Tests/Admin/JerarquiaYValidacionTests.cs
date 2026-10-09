@@ -128,7 +128,7 @@ public class JerarquiaYValidacionTests : IDisposable
         }
 
         await using var c2 = _db.CreateContext();
-        var svc = new KanbanService(c2);
+        var svc = new KanbanService(c2, new NotificationService(c2));
         var ex = await Assert.ThrowsAsync<AppException>(() =>
             svc.CreateTaskAsync(grupo, coord, new CreateTaskRequest { Title = "x", AssigneeIds = [ajeno] }));
         Assert.Equal(400, ex.StatusCode);

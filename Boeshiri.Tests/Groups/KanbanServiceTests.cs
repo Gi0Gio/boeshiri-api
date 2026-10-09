@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Notifications;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Groups;
 using Boeshiri.Domain.Entities;
@@ -13,7 +14,7 @@ public class KanbanServiceTests : IDisposable
 {
     private readonly TestDb _db = new();
 
-    private KanbanService NewService(BoeshiriDbContext ctx) => new(ctx);
+    private KanbanService NewService(BoeshiriDbContext ctx) => new(ctx, new NotificationService(ctx));
 
     [Fact]
     public async Task GetBoardAsync_NonMember_ThrowsForbidden()

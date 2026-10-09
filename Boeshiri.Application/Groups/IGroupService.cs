@@ -32,4 +32,14 @@ public interface IGroupService
 
     /// <summary>Crea un equipo dentro de una comisión y designa su líder (RF-TEAM-01/02).</summary>
     Task<Guid> CreateTeamAsync(Guid commissionId, CreateTeamRequest request, Guid userId, bool canManageGlobally, CancellationToken ct = default);
+
+    /// <summary>
+    /// Saca a alguien de un grupo, o deja el grupo si es uno mismo. Salir de una
+    /// comisión saca también de sus equipos. Coordinador y líder no se quitan: antes
+    /// hay que nombrar a otro.
+    /// </summary>
+    Task RemoveMemberAsync(Guid groupId, Guid memberId, Guid userId, bool canManageGlobally, CancellationToken ct = default);
+
+    /// <summary>Suma a un equipo a un integrante de su comisión (líder, coordinador o Junta).</summary>
+    Task AddTeamMemberAsync(Guid teamId, Guid memberId, Guid userId, bool canManageGlobally, CancellationToken ct = default);
 }

@@ -48,4 +48,10 @@ public interface IAuthService
 
     /// <summary>Fija la contraseña nueva con el token del enlace y cierra todas las sesiones.</summary>
     Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Vuelve a poner en revisión una postulación rechazada, pasados 30 días del
+    /// rechazo. Antes un rechazo era para siempre: ni con otro correo se podía.
+    /// </summary>
+    Task ReapplyAsync(Guid userId, CancellationToken ct = default);
 }

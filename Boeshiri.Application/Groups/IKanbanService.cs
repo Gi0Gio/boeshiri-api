@@ -16,4 +16,10 @@ public interface IKanbanService
 
     /// <summary>Añade un enlace a la tarea (líder o responsable).</summary>
     Task AddLinkAsync(Guid taskId, Guid userId, AddTaskLinkRequest request, CancellationToken ct = default);
+
+    /// <summary>Edita título, descripción y asignados (líder/coordinador).</summary>
+    Task UpdateTaskAsync(Guid taskId, Guid userId, UpdateTaskRequest request, CancellationToken ct = default);
+
+    /// <summary>Borra una tarea (líder/coordinador).</summary>
+    Task DeleteTaskAsync(Guid taskId, Guid userId, CancellationToken ct = default);
 }

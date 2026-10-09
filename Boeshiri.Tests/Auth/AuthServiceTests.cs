@@ -466,6 +466,37 @@ public class AuthServiceTests : IDisposable
         Assert.Equal(antes + 1, _email.Sent.Count);
     }
 
+    [Fact]
+    public async Task Reapply_AntesDe30Dias_409_Despues_VuelveARevision()
+    {
+        Guid id;
+        await using (var ctx = _db.CreateContext())
+        {
+            var u = new User { Email = "rp@ex.com", PasswordHash = "x", FullName = "R", Status = MemberStatus.Applicant, EmailVerified = true, RejectedAt = DateTime.UtcNow.AddDays(-5) };
+            ctx.Users.Add(u);
+            await ctx.SaveChangesAsync();
+            id = u.Id;
+        }
+
+        await using (var ctx = _db.CreateContext())
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).ReapplyAsync(id));
+            Assert.Equal(409, ex.StatusCode);
+            Assert.NotNull((await NewService(ctx).GetMeAsync(id)).PuedePostularseDesde);
+        }
+
+        await using (var ctx = _db.CreateContext())
+        {
+            (await ctx.Users.FindAsync(id))!.RejectedAt = DateTime.UtcNow.AddDays(-31);
+            await ctx.SaveChangesAsync();
+        }
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).ReapplyAsync(id);
+
+        await using var check = _db.CreateContext();
+        Assert.Equal("EnRevision", (await NewService(check).GetMeAsync(id)).SolicitudEstado);
+    }
+
     private async Task<SessionResult> LoginActiveAsync(string email)
     {
         await RegisterVerifiedActiveAsync(email);

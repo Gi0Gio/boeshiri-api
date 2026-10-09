@@ -1,3 +1,4 @@
+using Boeshiri.Infrastructure.Notifications;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Documents;
 using Boeshiri.Application.Groups;
@@ -166,7 +167,7 @@ public class ArchivosGuardTests : IDisposable
         }
         await using var c2 = _db.CreateContext();
         var ex = await Assert.ThrowsAsync<AppException>(() =>
-            new KanbanService(c2).AddLinkAsync(tarea, lider, new AddTaskLinkRequest { Title = "x", Url = "javascript:alert(1)" }));
+            new KanbanService(c2, new NotificationService(c2)).AddLinkAsync(tarea, lider, new AddTaskLinkRequest { Title = "x", Url = "javascript:alert(1)" }));
         Assert.Equal(400, ex.StatusCode);
     }
 

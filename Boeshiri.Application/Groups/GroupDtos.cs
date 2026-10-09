@@ -3,6 +3,12 @@ using Boeshiri.Domain.Enums;
 
 namespace Boeshiri.Application.Groups;
 
+/// <summary>Integrante que se suma a un equipo.</summary>
+public record AddTeamMemberRequest
+{
+    public required Guid UserId { get; init; }
+}
+
 /// <summary>Comisión en un listado (RF-GRP-01).</summary>
 public record CommissionDto(Guid Id, string Name, bool Permanent, int MemberCount, string? CoordinatorName);
 

@@ -153,6 +153,19 @@ public class AuthController(IAuthService authService, IOptions<AppOptions> app) 
         return Ok(session.Auth);
     }
 
+    /// <summary>Reabre una postulación rechazada (pasados 30 días).</summary>
+    [Authorize]
+    [HttpPost("postular-de-nuevo")]
+    public async Task<IActionResult> Reapply(CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(sub, out var userId))
+            return Unauthorized();
+
+        await authService.ReapplyAsync(userId, ct);
+        return Ok(new { mensaje = "Tu postulación vuelve a estar en revisión." });
+    }
+
     /// <summary>Pide el enlace para restablecer la contraseña. Misma respuesta exista o no la cuenta.</summary>
     [EnableRateLimiting(Limites.Auth)]
     [HttpPost("recuperar")]

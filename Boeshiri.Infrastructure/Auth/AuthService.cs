@@ -385,7 +385,8 @@ public class AuthService(
             user.Id, user.Email, user.FullName, user.Status.ToString(), user.EmailVerified,
             SolicitudEstado(user),
             user.UserRoles.Select(ur => ur.Role.Name).ToArray(),
-            user.EffectivePermissions().ToArray());
+            user.EffectivePermissions().ToArray(),
+            user.Status == MemberStatus.Applicant ? user.RejectedAt?.Add(EsperaTrasRechazo) : null);
     }
 
     /// <summary>Estado de la solicitud para mostrar al iniciar sesión (RF-PUB-16).</summary>
@@ -406,6 +407,28 @@ public class AuthService(
             .FirstOrDefaultAsync(predicate, ct);
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+
+    // ── Re-postulación ───────────────────────────────────────────
+
+    public static readonly TimeSpan EsperaTrasRechazo = TimeSpan.FromDays(30);
+
+    public async Task ReapplyAsync(Guid userId, CancellationToken ct = default)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw AppException.Unauthorized("Usuario no encontrado.");
+
+        if (user.Status != MemberStatus.Applicant || user.RejectedAt is null)
+            throw AppException.Conflict("No hay una postulación rechazada que reabrir.");
+
+        var desde = user.RejectedAt.Value.Add(EsperaTrasRechazo);
+        if (desde > DateTime.UtcNow)
+            throw AppException.Conflict($"Podrás postularte de nuevo a partir del {desde:dd/MM/yyyy}.");
+
+        user.RejectedAt = null;
+        user.StatusChangedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Postulación reabierta: {Email}", Privacidad.OcultarCorreo(user.Email));
+    }
 
     // ── Contraseña ───────────────────────────────────────────────
 

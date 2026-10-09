@@ -71,6 +71,30 @@ public class GruposController(IGroupService groups) : ControllerBase
         return Ok(new { mensaje = "Solicitud procesada." });
     }
 
+    /// <summary>Saca a alguien del grupo (coordinador, líder o Junta).</summary>
+    [HttpDelete("{id:guid}/integrantes/{userId:guid}")]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid userId, CancellationToken ct)
+    {
+        await groups.RemoveMemberAsync(id, userId, User.GetUserId(), CanManageGlobally, ct);
+        return NoContent();
+    }
+
+    /// <summary>Deja el grupo.</summary>
+    [HttpPost("{id:guid}/salir")]
+    public async Task<IActionResult> Leave(Guid id, CancellationToken ct)
+    {
+        await groups.RemoveMemberAsync(id, User.GetUserId(), User.GetUserId(), CanManageGlobally, ct);
+        return NoContent();
+    }
+
+    /// <summary>Suma a un integrante de la comisión al equipo.</summary>
+    [HttpPost("equipos/{id:guid}/integrantes")]
+    public async Task<IActionResult> AddTeamMember(Guid id, AddTeamMemberRequest request, CancellationToken ct)
+    {
+        await groups.AddTeamMemberAsync(id, request.UserId, User.GetUserId(), CanManageGlobally, ct);
+        return NoContent();
+    }
+
     /// <summary>Crea un equipo dentro de una comisión y designa su líder (RF-TEAM-01/02).</summary>
     [HttpPost("comisiones/{id:guid}/equipos")]
     public async Task<IActionResult> CreateTeam(Guid id, CreateTeamRequest request, CancellationToken ct)

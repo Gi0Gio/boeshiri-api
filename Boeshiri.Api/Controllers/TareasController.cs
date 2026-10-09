@@ -34,6 +34,22 @@ public class TareasController(IKanbanService kanban) : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Edita título, descripción y asignados (líder/coordinador).</summary>
+    [HttpPut("tareas/{taskId:guid}")]
+    public async Task<IActionResult> Update(Guid taskId, UpdateTaskRequest request, CancellationToken ct)
+    {
+        await kanban.UpdateTaskAsync(taskId, User.GetUserId(), request, ct);
+        return NoContent();
+    }
+
+    /// <summary>Borra la tarea (líder/coordinador).</summary>
+    [HttpDelete("tareas/{taskId:guid}")]
+    public async Task<IActionResult> Delete(Guid taskId, CancellationToken ct)
+    {
+        await kanban.DeleteTaskAsync(taskId, User.GetUserId(), ct);
+        return NoContent();
+    }
+
     /// <summary>Añade un enlace a la tarea (líder o responsable).</summary>
     [HttpPost("tareas/{taskId:guid}/enlaces")]
     public async Task<IActionResult> AddLink(Guid taskId, AddTaskLinkRequest request, CancellationToken ct)

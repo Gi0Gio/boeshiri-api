@@ -1,6 +1,7 @@
 using Boeshiri.Infrastructure.Storage;
 using Boeshiri.Application.Common;
 using Boeshiri.Application.Groups;
+using Boeshiri.Application.Notifications;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
 using Boeshiri.Infrastructure.Persistence;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Boeshiri.Infrastructure.Groups;
 
 /// <summary>Tablero Kanban (§7.4) con autorización contextual por grupo (ADR-0005).</summary>
-public class KanbanService(BoeshiriDbContext db) : IKanbanService
+public class KanbanService(BoeshiriDbContext db, INotificationService notifications) : IKanbanService
 {
     public async Task<IReadOnlyList<BoardTaskDto>> GetBoardAsync(Guid groupId, Guid userId, CancellationToken ct = default)
     {
@@ -34,12 +35,7 @@ public class KanbanService(BoeshiriDbContext db) : IKanbanService
         if (!IsManager(role))
             throw AppException.Forbidden("Solo el líder o coordinador del grupo puede crear tareas.");
 
-        var asignados = (request.AssigneeIds ?? []).Distinct().ToList();
-        var integrantes = await db.GroupMemberships
-            .Where(m => m.GroupId == groupId && asignados.Contains(m.UserId))
-            .CountAsync(ct);
-        if (integrantes != asignados.Count)
-            throw AppException.BadRequest("Solo puedes asignar la tarea a integrantes del grupo.");
+        var asignados = await ValidarAsignadosAsync(groupId, request.AssigneeIds, ct);
 
         var task = new KanbanTask
         {
@@ -50,8 +46,9 @@ public class KanbanService(BoeshiriDbContext db) : IKanbanService
             CreatedBy = userId
         };
 
-        foreach (var assigneeId in (request.AssigneeIds ?? []).Distinct())
+        foreach (var assigneeId in asignados)
             task.Assignees.Add(new KanbanTaskAssignee { UserId = assigneeId });
+        AvisarAsignados(asignados, userId, task.Title);
 
         db.KanbanTasks.Add(task);
         await db.SaveChangesAsync(ct);
@@ -96,6 +93,62 @@ public class KanbanService(BoeshiriDbContext db) : IKanbanService
         Enlaces.ExigirWeb(request.Url, "Enlace");
         db.KanbanTaskLinks.Add(new KanbanTaskLink { TaskId = taskId, Title = request.Title.Trim(), Url = request.Url.Trim() });
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateTaskAsync(Guid taskId, Guid userId, UpdateTaskRequest request, CancellationToken ct = default)
+    {
+        var task = await db.KanbanTasks
+            .Include(t => t.Assignees)
+            .FirstOrDefaultAsync(t => t.Id == taskId, ct)
+            ?? throw AppException.NotFound("La tarea no existe.");
+
+        if (!IsManager(await RoleInGroupAsync(task.GroupId, userId, ct)))
+            throw AppException.Forbidden("Solo el líder o coordinador del grupo puede editar tareas.");
+
+        var asignados = await ValidarAsignadosAsync(task.GroupId, request.AssigneeIds, ct);
+
+        task.Title = request.Title.Trim();
+        task.Description = request.Description;
+
+        var nuevos = asignados.Where(id => task.Assignees.All(a => a.UserId != id)).ToList();
+        foreach (var fuera in task.Assignees.Where(a => !asignados.Contains(a.UserId)).ToList())
+            task.Assignees.Remove(fuera);
+        foreach (var id in nuevos)
+            task.Assignees.Add(new KanbanTaskAssignee { TaskId = task.Id, UserId = id });
+        AvisarAsignados(nuevos, userId, task.Title);
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteTaskAsync(Guid taskId, Guid userId, CancellationToken ct = default)
+    {
+        var task = await db.KanbanTasks.FirstOrDefaultAsync(t => t.Id == taskId, ct)
+            ?? throw AppException.NotFound("La tarea no existe.");
+
+        if (!IsManager(await RoleInGroupAsync(task.GroupId, userId, ct)))
+            throw AppException.Forbidden("Solo el líder o coordinador del grupo puede borrar tareas.");
+
+        db.KanbanTasks.Remove(task);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Los asignados tienen que ser integrantes del grupo.</summary>
+    private async Task<List<Guid>> ValidarAsignadosAsync(Guid groupId, List<Guid>? ids, CancellationToken ct)
+    {
+        var asignados = (ids ?? []).Distinct().ToList();
+        var integrantes = await db.GroupMemberships
+            .Where(m => m.GroupId == groupId && asignados.Contains(m.UserId))
+            .CountAsync(ct);
+        if (integrantes != asignados.Count)
+            throw AppException.BadRequest("Solo puedes asignar la tarea a integrantes del grupo.");
+        return asignados;
+    }
+
+    /// <summary>Quien recibe una tarea se entera (salvo que se la asigne a sí mismo).</summary>
+    private void AvisarAsignados(IEnumerable<Guid> ids, Guid autorId, string titulo)
+    {
+        foreach (var id in ids.Where(id => id != autorId))
+            notifications.Notify(id, "tarea.asignada", $"Te asignaron la tarea «{titulo}».");
     }
 
     private static bool IsManager(GroupRole? role) => role is GroupRole.Leader or GroupRole.Coordinator;
