@@ -21,6 +21,9 @@ public record RegisterRequest
     [MaxLength(80)]
     public string? Discipline { get; init; }
 
+    /// <summary>Claves del catálogo de disciplinas (GET /comunidad/disciplinas).</summary>
+    public List<string>? Disciplines { get; init; }
+
     [MaxLength(1000)]
     public string? ApplicationReason { get; init; }
 }

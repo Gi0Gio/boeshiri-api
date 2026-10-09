@@ -1,4 +1,5 @@
 using Boeshiri.Application.Profiles;
+using Boeshiri.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,11 @@ public class ComunidadController(IProfileService profiles) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CommunityMemberDto>>> List([FromQuery] string? rol, CancellationToken ct)
         => Ok(await profiles.ListCommunityAsync(rol, ct));
+
+    /// <summary>Catálogo cerrado de disciplinas: lo que se elige en el perfil y filtra la Comunidad.</summary>
+    [HttpGet("disciplinas")]
+    public ActionResult<IReadOnlyList<DisciplineDto>> Disciplines()
+        => Ok(Disciplinas.Catalogo.Select(d => new DisciplineDto(d.Clave, d.Etiqueta)).ToList());
 
     /// <summary>Perfil público de un miembro (filtrado por su privacidad).</summary>
     [HttpGet("{id:guid}")]

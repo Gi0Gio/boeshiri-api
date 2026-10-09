@@ -39,6 +39,69 @@ public class ProfileServiceTests : IDisposable
         Assert.Equal(2, user.Tags.Count);
     }
 
+    // ── Disciplinas (catálogo cerrado) ───────────────────────────
+    [Fact]
+    public async Task UpdateProfileAsync_Disciplines_NormalizedToCatalogOrder()
+    {
+        var id = await AddUserAsync("m@ex.com");
+
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateProfileAsync(id, new UpdateProfileRequest
+            {
+                FullName = "Ana",
+                Disciplines = ["escena", " Foto ", "foto", "dibujo"]
+            });
+
+        await using var check = _db.CreateContext();
+        var user = await check.Users.SingleAsync(u => u.Id == id);
+        Assert.Equal(["dibujo", "foto", "escena"], user.Disciplines);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_UnknownDiscipline_ThrowsBadRequestAndKeepsPrevious()
+    {
+        var id = await AddUserAsync("m@ex.com");
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateProfileAsync(id, new UpdateProfileRequest { FullName = "Ana", Disciplines = ["pintura"] });
+
+        await using (var ctx = _db.CreateContext())
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() => NewService(ctx).UpdateProfileAsync(id,
+                new UpdateProfileRequest { FullName = "Ana", Disciplines = ["pintura", "malabares"] }));
+            Assert.Equal(400, ex.StatusCode);
+        }
+
+        await using var check = _db.CreateContext();
+        Assert.Equal(["pintura"], (await check.Users.SingleAsync(u => u.Id == id)).Disciplines);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_DisciplinesOmitted_KeepsPrevious()
+    {
+        var id = await AddUserAsync("m@ex.com");
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateProfileAsync(id, new UpdateProfileRequest { FullName = "Ana", Disciplines = ["pintura"] });
+
+        // Un front anterior no manda el campo: no debe vaciar lo que ya eligió.
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateProfileAsync(id, new UpdateProfileRequest { FullName = "Ana" });
+
+        await using var check = _db.CreateContext();
+        Assert.Equal(["pintura"], (await check.Users.SingleAsync(u => u.Id == id)).Disciplines);
+    }
+
+    [Fact]
+    public async Task ListCommunityAsync_IncludesDisciplines()
+    {
+        var id = await AddUserAsync("m@ex.com");
+        await using (var ctx = _db.CreateContext())
+            await NewService(ctx).UpdateProfileAsync(id, new UpdateProfileRequest { FullName = "Ana", Disciplines = ["foto", "pintura"] });
+
+        await using var read = _db.CreateContext();
+        var member = Assert.Single(await NewService(read).ListCommunityAsync());
+        Assert.Equal(["pintura", "foto"], member.Disciplines);
+    }
+
     // ── Validaciones de redes (RF-MEM-05) ────────────────────────
     [Fact]
     public async Task UpdateSocialLinksAsync_MoreThanTwoWhatsapp_ThrowsBadRequest()

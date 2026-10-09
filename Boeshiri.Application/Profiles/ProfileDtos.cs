@@ -11,6 +11,9 @@ public record SocialLinkDto(SocialNetworkType Type, string Value, bool Visible);
 
 public record SkillDto(string Name, int Level);
 
+/// <summary>Entrada del catálogo cerrado de disciplinas.</summary>
+public record DisciplineDto(string Key, string Label);
+
 public record SkillInput
 {
     [Required, MaxLength(80)]
@@ -30,6 +33,7 @@ public record MyProfileDto(
     string? Intro,
     string? PhotoUrl,
     string? Discipline,
+    IReadOnlyList<string> Disciplines,
     string? Location,
     ProfilePrivacyDto Privacy,
     IReadOnlyList<string> Tags,
@@ -50,6 +54,9 @@ public record UpdateProfileRequest
 
     [MaxLength(120)]
     public string? Discipline { get; init; }
+
+    /// <summary>Claves del catálogo de disciplinas (GET /comunidad/disciplinas).</summary>
+    public List<string>? Disciplines { get; init; }
 
     /// <summary>Ubicación opcional; se muestra como pill si el miembro la rellena (RF-MEM-02).</summary>
     [MaxLength(120)]
@@ -92,7 +99,7 @@ public record UpdateSocialLinksRequest
 
 // ── Comunidad (perfiles públicos, RF-PUB-09) ─────────────────────
 
-public record CommunityMemberDto(Guid Id, string FullName, string? Discipline, string? PhotoUrl, IReadOnlyList<string> Tags, IReadOnlyList<string> Roles);
+public record CommunityMemberDto(Guid Id, string FullName, string? Discipline, IReadOnlyList<string> Disciplines, string? PhotoUrl, IReadOnlyList<string> Tags, IReadOnlyList<string> Roles);
 
 public record PublicSocialLinkDto(SocialNetworkType Type, string Value);
 public record ProfileGalleryItemDto(Guid Id, PublicationType Type, string Title, string? CoverImage);
@@ -106,6 +113,7 @@ public record PublicProfileDto(
     string? Intro,
     string? PhotoUrl,
     string? Discipline,
+    IReadOnlyList<string> Disciplines,
     string? Location,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Tags,

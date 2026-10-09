@@ -37,7 +37,7 @@ public record MisDatosDto(
     IReadOnlyList<MisDatosAviso> Avisos);
 
 public record MisDatosPerfil(
-    string Email, string NombreCompleto, string? Telefono, string? Disciplina, string? Ubicacion,
+    string Email, string NombreCompleto, string? Telefono, string? Disciplina, IReadOnlyList<string> Disciplinas, string? Ubicacion,
     string? Bio, string? Intro, string? FotoUrl, string? MotivoPostulacion,
     string Estado, DateTime RegistradoEn, DateTime? VerificadoEn,
     bool MuestraTelefono, bool MuestraCorreo, bool MuestraWhatsapp, bool MuestraComisiones, bool MuestraHistorial);

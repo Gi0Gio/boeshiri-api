@@ -37,6 +37,9 @@ public class User
     public string? Location { get; set; }
     public string? Discipline { get; set; }
 
+    /// <summary>Claves de <see cref="Disciplinas"/>: lo que filtra la Comunidad. Discipline queda como su descripción libre.</summary>
+    public List<string> Disciplines { get; set; } = [];
+
     // ── Privacidad: ocultables por el miembro (RF-MEM-03) ────────
     public bool ShowPhone { get; set; }
     public bool ShowEmail { get; set; }

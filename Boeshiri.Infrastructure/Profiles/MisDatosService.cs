@@ -30,7 +30,7 @@ public class MisDatosService(
             ?? throw AppException.NotFound("La cuenta no existe.");
 
         var perfil = new MisDatosPerfil(
-            u.Email, u.FullName, u.Phone, u.Discipline, u.Location, u.Bio, u.Intro, u.PhotoUrl, u.ApplicationReason,
+            u.Email, u.FullName, u.Phone, u.Discipline, u.Disciplines, u.Location, u.Bio, u.Intro, u.PhotoUrl, u.ApplicationReason,
             u.Status.ToString(), u.RegisteredAt, u.VerifiedAt,
             u.ShowPhone, u.ShowEmail, u.ShowWhatsapp, u.ShowCommittees, u.ShowHistory);
 
@@ -127,6 +127,7 @@ public class MisDatosService(
             u.PhotoUrl = null;
             u.Location = null;
             u.Discipline = null;
+            u.Disciplines = [];
             u.ShowPhone = u.ShowEmail = u.ShowWhatsapp = u.ShowCommittees = u.ShowHistory = false;
             u.MarketplaceActive = false;
             u.EmailVerified = false;

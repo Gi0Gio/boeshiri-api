@@ -4,6 +4,7 @@ using Boeshiri.Application.Common;
 using Boeshiri.Application.Profiles;
 using Boeshiri.Domain.Entities;
 using Boeshiri.Domain.Enums;
+using Boeshiri.Infrastructure.Common;
 using Boeshiri.Infrastructure.Persistence;
 using Boeshiri.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,7 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
             ?? throw AppException.Unauthorized("Usuario no encontrado.");
 
         return new MyProfileDto(
-            user.Id, user.FullName, user.Email, user.Phone, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Location,
+            user.Id, user.FullName, user.Email, user.Phone, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Disciplines, user.Location,
             new ProfilePrivacyDto(user.ShowPhone, user.ShowEmail, user.ShowWhatsapp, user.ShowCommittees, user.ShowHistory),
             user.Tags.Select(t => t.Name).ToList(),
             user.Skills.OrderBy(s => s.Order).Select(s => new SkillDto(s.Name, s.Level)).ToList(),
@@ -40,6 +41,9 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
         user.Bio = request.Bio;
         user.Intro = request.Intro;
         user.Discipline = request.Discipline;
+        // null = el cliente no las manda (versiones viejas del front): se conservan.
+        if (request.Disciplines is not null)
+            user.Disciplines = DisciplinasElegidas.Validar(request.Disciplines);
         user.Location = request.Location;
 
         // Al cambiar de foto hay que soltar la anterior del bucket: si no, cada
@@ -118,7 +122,7 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
         return await query
             .OrderBy(u => u.FullName)
             .Select(u => new CommunityMemberDto(
-                u.Id, u.FullName, u.Discipline, u.PhotoUrl,
+                u.Id, u.FullName, u.Discipline, u.Disciplines, u.PhotoUrl,
                 u.Tags.Select(t => t.Name).ToList(),
                 u.UserRoles.Select(ur => ur.Role.Name).ToList()))
             .ToListAsync(ct);
@@ -179,7 +183,7 @@ public class ProfileService(BoeshiriDbContext db, IFileStorage storage) : IProfi
             : [];
 
         return new PublicProfileDto(
-            user.Id, user.FullName, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Location,
+            user.Id, user.FullName, user.Bio, user.Intro, user.PhotoUrl, user.Discipline, user.Disciplines, user.Location,
             user.UserRoles.Select(ur => ur.Role.Name).ToList(),
             user.Tags.Select(t => t.Name).ToList(),
             user.Skills.OrderBy(s => s.Order).Select(s => new SkillDto(s.Name, s.Level)).ToList(),

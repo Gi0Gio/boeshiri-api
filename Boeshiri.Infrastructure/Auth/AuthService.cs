@@ -63,6 +63,7 @@ public class AuthService(
             FullName = request.FullName.Trim(),
             Phone = request.Phone,
             Discipline = request.Discipline,
+            Disciplines = DisciplinasElegidas.Validar(request.Disciplines),
             ApplicationReason = request.ApplicationReason,
             Status = MemberStatus.Applicant,
             EmailVerified = false,
